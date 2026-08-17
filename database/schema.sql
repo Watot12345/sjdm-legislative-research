@@ -109,6 +109,18 @@ CREATE TABLE `policy_documents` (
   KEY `idx_upload_date` (`upload_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS `upcoming_deadlines` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `title` VARCHAR(255) NOT NULL,
+  `category` VARCHAR(100) DEFAULT 'General',
+  `due_date` DATE NOT NULL,
+  `priority` ENUM('high', 'medium', 'low') DEFAULT 'medium',
+  `status` ENUM('pending', 'completed') DEFAULT 'pending',
+  `created_by` VARCHAR(50) DEFAULT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- --------------------------------------------------------------------
 -- 5. Table: datasets
 -- Sectoral datasets collected for policy evaluation and analysis.
