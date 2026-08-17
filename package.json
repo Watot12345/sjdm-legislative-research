@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@google/genai": "^2.16.0"
+  },
+  "allowScripts": {
+    "@google/genai@2.16.0": true,
+    "protobufjs@7.6.5": true
+  }
+}
