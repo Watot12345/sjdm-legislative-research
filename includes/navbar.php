@@ -350,9 +350,9 @@ function markAllAsRead() {
     let _selectedIndex = -1;
     let _resultItems = [];
 
-    // Detect if we are inside /modules/ to build correct relative URLs
-    const _isInModules = window.location.pathname.includes('/modules/');
-    const _apiBase = _isInModules ? '../api/global-search.php' : 'api/global-search.php';
+    // Detect if we are inside /modules/ or /admin/ to build correct relative URLs
+    const _isInSubfolder = window.location.pathname.includes('/modules/') || window.location.pathname.includes('/admin/');
+    const _apiBase = _isInSubfolder ? '../api/global-search.php' : 'api/global-search.php';
 
     const COLOR_MAP = {
         blue:    { bg: 'bg-blue-50',    icon: 'text-blue-600',    badge: 'bg-blue-100 text-blue-700' },
