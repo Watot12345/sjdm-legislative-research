@@ -251,18 +251,72 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
         </div>
 
         <!-- Logout Button -->
-        <a href="<?php echo $logout_url; ?>" 
-           onclick="return confirmLogout(event)"
+        <button type="button"
+           onclick="openLogoutModal(event)"
            data-title="Logout"
            title="Logout"
-           class="sidebar-logout-btn mt-3 flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 text-white rounded-xl py-2 px-3 text-xs font-semibold transition-all shadow-sm hover:shadow">
+           class="sidebar-logout-btn w-full mt-3 flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 text-white rounded-xl py-2 px-3 text-xs font-semibold transition-all shadow-sm hover:shadow cursor-pointer">
             <i class="fa-solid fa-right-from-bracket"></i>
             <span class="sidebar-logout-text">Logout</span>
-        </a>
+        </button>
 
     </div>
 
 </aside>
+
+<!-- LOGOUT CONFIRMATION MODAL -->
+<div id="logoutConfirmModal" class="fixed inset-0 z-[9999] hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200 select-none">
+    <div class="relative bg-white w-full max-w-md mx-4 rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform scale-95 opacity-0 transition-all duration-200" id="logoutModalCard">
+        
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-4 text-white flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                    <i class="fa-solid fa-right-from-bracket text-lg text-white"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-base leading-tight text-white">Confirm Logout</h3>
+                    <p class="text-xs text-red-100 mt-0.5">End your current session</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeLogoutModal()" class="text-white/80 hover:text-white hover:bg-white/10 w-8 h-8 rounded-lg flex items-center justify-center transition cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Body Content -->
+        <div class="p-6">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center shrink-0 text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <p class="text-slate-800 text-sm font-medium">
+                        Are you sure you want to log out of the platform?
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Any unsaved progress may be lost. You will need to log in again to access the Legislative Research system.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" 
+                        onclick="closeLogoutModal()" 
+                        class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition focus:outline-none cursor-pointer">
+                    Cancel
+                </button>
+                <a id="logoutModalConfirmBtn" 
+                   href="<?php echo $logout_url; ?>" 
+                   class="px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white text-sm font-semibold hover:from-red-700 hover:to-rose-700 transition shadow-md hover:shadow-lg flex items-center gap-2 focus:outline-none cursor-pointer">
+                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                    <span>Log Out</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 function toggleSidebarCompact() {
@@ -280,13 +334,50 @@ function toggleSidebarCompact() {
     }
 }
 
-function confirmLogout(event) {
-    if (!confirm('Are you sure you want to logout?')) {
-        event.preventDefault();
-        return false;
+function openLogoutModal(event, targetUrl) {
+    if (event) event.preventDefault();
+    const modal = document.getElementById('logoutConfirmModal');
+    const card = document.getElementById('logoutModalCard');
+    const confirmBtn = document.getElementById('logoutModalConfirmBtn');
+    
+    if (targetUrl && confirmBtn) {
+        confirmBtn.href = targetUrl;
     }
-    return true;
+    
+    if (modal && card) {
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            card.classList.remove('scale-95', 'opacity-0');
+            card.classList.add('scale-100', 'opacity-100');
+        });
+    }
 }
+
+function closeLogoutModal() {
+    const modal = document.getElementById('logoutConfirmModal');
+    const card = document.getElementById('logoutModalCard');
+    if (modal && card) {
+        card.classList.remove('scale-100', 'opacity-100');
+        card.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 150);
+    }
+}
+
+// Close modal on escape key or backdrop click
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeLogoutModal();
+    }
+});
+
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('logoutConfirmModal');
+    if (modal && e.target === modal) {
+        closeLogoutModal();
+    }
+});
 
 // Ensure icon state matches saved preference
 document.addEventListener('DOMContentLoaded', function() {

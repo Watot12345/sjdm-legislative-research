@@ -238,8 +238,9 @@ $logout_url = (strpos($_SERVER['PHP_SELF'], '/modules/') !== false || strpos($_S
                     Help Center
                 </a>
                 <hr class="border-slate-100">
-                <a href="<?php echo $logout_url; ?>"
-                   class="flex items-center gap-3 px-5 py-3 text-sm text-red-600 hover:bg-red-50 font-medium transition">
+                <a href="javascript:void(0)"
+                   onclick="openLogoutModal(event, '<?php echo $logout_url; ?>')"
+                   class="flex items-center gap-3 px-5 py-3 text-sm text-red-600 hover:bg-red-50 font-medium transition cursor-pointer">
                     <i class="fa-solid fa-right-from-bracket"></i>
                     Logout
                 </a>
