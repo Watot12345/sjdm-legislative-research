@@ -153,6 +153,11 @@ if (!empty($analysis_benchmark_id)) {
 
 // Handle matrix evaluation submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_matrix'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to evaluate benchmark matrix.'];
+        header("Location: benchmarking-analysis.php");
+        exit();
+    }
     $benchmark_id = $_POST['benchmark_id'];
     
     // Comparison Matrix Criteria - 10 criteria (1-10 scale)
@@ -1343,15 +1348,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_matrix'])) {
                                 </div>
                             <?php endif; ?>
                             
+                            <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
                             <div class="mt-3 no-print">
                                 <button onclick="toggleMatrixForm()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg btn-scale">
                                     <i class="fa-solid fa-pen mr-2"></i> Update Evaluation
                                 </button>
                             </div>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
                     <!-- Matrix Evaluation Form -->
+                    <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
                     <div id="matrixForm" class="<?php echo $matrix_evaluation ? 'hidden' : 'block'; ?>">
                         <form method="POST" action="" id="matrixFormSubmit">
                             <input type="hidden" name="save_matrix" value="1">
@@ -1431,6 +1439,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_matrix'])) {
                             </div>
                         </form>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
 

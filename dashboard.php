@@ -25,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all_read'])) {
 // ============================================
 // Handle: Create Deadline
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_deadline'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to manage deadlines.'];
+        header("Location: dashboard.php");
+        exit();
+    }
     $d_title = $conn->real_escape_string($_POST['title']);
     $d_category = $conn->real_escape_string($_POST['category'] ?? 'General');
     $d_due_date = $conn->real_escape_string($_POST['due_date']);
@@ -38,6 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_deadline'])) {
 
 // Handle: Update Deadline
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_deadline'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to manage deadlines.'];
+        header("Location: dashboard.php");
+        exit();
+    }
     $d_id = intval($_POST['deadline_id']);
     $d_title = $conn->real_escape_string($_POST['title']);
     $d_category = $conn->real_escape_string($_POST['category'] ?? 'General');
@@ -53,6 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_deadline'])) {
 
 // Handle: Toggle Status (Complete / Pending)
 if (isset($_GET['toggle_deadline'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to manage deadlines.'];
+        header("Location: dashboard.php");
+        exit();
+    }
     $d_id = intval($_GET['toggle_deadline']);
     $conn->query("UPDATE upcoming_deadlines SET status = IF(status='completed', 'pending', 'completed') WHERE id = $d_id");
     $conn->query("INSERT INTO activity_logs (user, action, module, timestamp) VALUES ('$username', 'Toggled deadline status ID: $d_id', 'Dashboard', NOW())");
@@ -62,6 +77,11 @@ if (isset($_GET['toggle_deadline'])) {
 
 // Handle: Delete Deadline
 if (isset($_GET['delete_deadline'])) {
+    if (!canDeletePolicy()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'Only administrators can delete deadlines.'];
+        header("Location: dashboard.php");
+        exit();
+    }
     $d_id = intval($_GET['delete_deadline']);
     $conn->query("DELETE FROM upcoming_deadlines WHERE id = $d_id");
     $conn->query("INSERT INTO activity_logs (user, action, module, timestamp) VALUES ('$username', 'Deleted deadline ID: $d_id', 'Dashboard', NOW())");
@@ -196,24 +216,34 @@ body{
 <!-- ========================================= -->
 
 <!-- WELCOME -->
+<?php 
+$current_role = getCurrentUserRole();
+$role_titles = [
+    ROLE_ADMIN => ['title' => 'System Administrator', 'subtitle' => 'Manage user permissions, monitor system audit logs, configure policies, and supervise municipal research operations.'],
+    ROLE_RESEARCHER => ['title' => 'Legislative Researcher', 'subtitle' => 'Author legislative proposals, run Gemini AI legal citations, evaluate policy impact KPIs, and conduct comparative benchmarking.'],
+    ROLE_DATA_ENCODER => ['title' => 'Data Encoder Portal', 'subtitle' => 'Collect, upload, and organize municipal datasets, baseline metrics, and departmental records for legislative evaluation.'],
+    ROLE_VIEWER => ['title' => 'Executive Legislative Reviewer', 'subtitle' => 'Review published municipal ordinances, examine policy impact analytics, monitor benchmarking comparisons, and export reports.']
+];
+$r_info = $role_titles[$current_role] ?? ['title' => 'Legislative Portal', 'subtitle' => 'Manage and monitor City Government of San Jose Del Monte legislative records.'];
+?>
 
-<div class="bg-gradient-to-r from-blue-900 to-blue-600 rounded-xl text-white p-8 shadow-lg">
-
-<h2 class="text-3xl font-bold">
-
-Welcome Back,
-<?php echo $username; ?>
-
-</h2>
-
-<p class="mt-3 text-blue-100">
-
-Manage legislative research, analyze public policies,
-evaluate impacts, compare ordinances, generate reports,
-and monitor government policy intelligence.
-
-</p>
-
+<div class="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 rounded-2xl text-white p-8 shadow-lg relative overflow-hidden">
+    <div class="relative z-10">
+        <div class="flex items-center gap-3 mb-2">
+            <span class="bg-white/15 backdrop-blur-md border border-white/20 text-blue-100 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+                <?php echo htmlspecialchars($r_info['title']); ?>
+            </span>
+        </div>
+        <h2 class="text-3xl font-bold">
+            Welcome Back, <?php echo htmlspecialchars($username); ?>!
+        </h2>
+        <p class="mt-2 text-blue-100 max-w-2xl text-sm leading-relaxed">
+            <?php echo htmlspecialchars($r_info['subtitle']); ?>
+        </p>
+    </div>
+    <div class="absolute -right-10 -bottom-10 opacity-10 text-white text-9xl pointer-events-none">
+        <i class="fa-solid fa-landmark"></i>
+    </div>
 </div>
 
 <!-- ANALYTICS KPI CARDS -->
@@ -452,88 +482,160 @@ Generated Reports
 
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
 
-        <a href="modules/policy-research.php"
-        class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-blue-700">
-
-            <div class="flex items-center justify-between">
-
-                <div>
-
-                    <h3 class="font-bold text-lg">
-
-                        Policy Research
-
-                    </h3>
-
-                    <p class="text-slate-500 mt-2">
-
-                        Search and analyze legislative documents.
-
-                    </p>
-
+        <?php if (isAdmin()): ?>
+            <a href="admin/users.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-yellow-500 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-yellow-600 transition">User Management</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Provision accounts and manage role permissions.</p>
+                    </div>
+                    <i class="fa-solid fa-users-gear text-3xl text-yellow-500"></i>
                 </div>
-
-                <i class="fa-solid fa-book-open text-4xl text-blue-700"></i>
-
-            </div>
-
-        </a>
-
-        <a href="modules/data-collection.php"
-        class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-green-600">
-
-            <div class="flex items-center justify-between">
-
-                <div>
-
-                    <h3 class="font-bold text-lg">
-
-                        Data Collection
-
-                    </h3>
-
-                    <p class="text-slate-500 mt-2">
-
-                        Upload and manage datasets.
-
-                    </p>
-
+            </a>
+            <a href="modules/policy-research.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-blue-700 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-700 transition">Policy Research</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Search, analyze, and manage ordinances.</p>
+                    </div>
+                    <i class="fa-solid fa-book-open text-3xl text-blue-700"></i>
                 </div>
-
-                <i class="fa-solid fa-database text-4xl text-green-600"></i>
-
-            </div>
-
-        </a>
-
-        <a href="modules/report-generation.php"
-        class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-red-600">
-
-            <div class="flex items-center justify-between">
-
-                <div>
-
-                    <h3 class="font-bold text-lg">
-
-                        Generate Reports
-
-                    </h3>
-
-                    <p class="text-slate-500 mt-2">
-
-                        Export legislative reports.
-
-                    </p>
-
+            </a>
+            <a href="modules/data-collection.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-green-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-green-600 transition">Data Collection</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Review incoming municipal datasets.</p>
+                    </div>
+                    <i class="fa-solid fa-database text-3xl text-green-600"></i>
                 </div>
+            </a>
+            <a href="modules/report-generation.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-red-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-red-600 transition">Generate Reports</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Export official PDF and Word briefs.</p>
+                    </div>
+                    <i class="fa-solid fa-file-pdf text-3xl text-red-600"></i>
+                </div>
+            </a>
 
-                <i class="fa-solid fa-file-pdf text-4xl text-red-600"></i>
+        <?php elseif (isResearcher()): ?>
+            <a href="modules/add-policy.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-blue-700 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-700 transition">Draft Policy</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Create a new legislative proposal.</p>
+                    </div>
+                    <i class="fa-solid fa-file-circle-plus text-3xl text-blue-700"></i>
+                </div>
+            </a>
+            <a href="modules/policy-research.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-purple-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-purple-600 transition">AI Legal Citations</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Generate Gemini legal references.</p>
+                    </div>
+                    <i class="fa-solid fa-robot text-3xl text-purple-600"></i>
+                </div>
+            </a>
+            <a href="modules/impact-assessment.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-indigo-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-indigo-600 transition">Impact KPIs</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Evaluate effectiveness and equity scores.</p>
+                    </div>
+                    <i class="fa-solid fa-chart-line text-3xl text-indigo-600"></i>
+                </div>
+            </a>
+            <a href="modules/benchmarking-analysis.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-amber-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-amber-600 transition">Benchmarking</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Score comparative policy matrices.</p>
+                    </div>
+                    <i class="fa-solid fa-scale-balanced text-3xl text-amber-600"></i>
+                </div>
+            </a>
 
-            </div>
+        <?php elseif (isDataEncoder()): ?>
+            <a href="modules/data-collection.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-green-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-green-600 transition">Upload Dataset</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Upload CSV, Excel, or PDF records.</p>
+                    </div>
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-green-600"></i>
+                </div>
+            </a>
+            <a href="modules/data-collection.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-blue-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition">Dataset Library</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Organize and manage collection files.</p>
+                    </div>
+                    <i class="fa-solid fa-database text-3xl text-blue-600"></i>
+                </div>
+            </a>
+            <a href="modules/policy-research.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-slate-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-slate-800 transition">Policy Repository</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Browse policy proposal references.</p>
+                    </div>
+                    <i class="fa-solid fa-book-open text-3xl text-slate-600"></i>
+                </div>
+            </a>
+            <a href="modules/data-visualization.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-purple-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-purple-600 transition">Data Visualization</h3>
+                        <p class="text-slate-500 mt-2 text-xs">View charts and collection statistics.</p>
+                    </div>
+                    <i class="fa-solid fa-chart-pie text-3xl text-purple-600"></i>
+                </div>
+            </a>
 
-        </a>
+        <?php else: /* Viewer */ ?>
+            <a href="modules/policy-research.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-blue-700 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-700 transition">Policy Library</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Read ordinances and legal citations.</p>
+                    </div>
+                    <i class="fa-solid fa-book-open text-3xl text-blue-700"></i>
+                </div>
+            </a>
+            <a href="modules/impact-assessment.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-indigo-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-indigo-600 transition">Impact Analytics</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Review municipal KPI evaluation scores.</p>
+                    </div>
+                    <i class="fa-solid fa-chart-line text-3xl text-indigo-600"></i>
+                </div>
+            </a>
+            <a href="modules/benchmarking-analysis.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-amber-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-amber-600 transition">Benchmarking</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Examine comparative ordinances.</p>
+                    </div>
+                    <i class="fa-solid fa-scale-balanced text-3xl text-amber-600"></i>
+                </div>
+            </a>
+            <a href="modules/report-generation.php" class="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-l-4 border-red-600 group">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-red-600 transition">Export Reports</h3>
+                        <p class="text-slate-500 mt-2 text-xs">Download policy briefs and summaries.</p>
+                    </div>
+                    <i class="fa-solid fa-file-pdf text-3xl text-red-600"></i>
+                </div>
+            </a>
+        <?php endif; ?>
 
     </div>
 
@@ -661,12 +763,14 @@ Generated Reports
             </div>
             
             <!-- Add Deadline Button -->
+            <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
             <button type="button" 
                     onclick="openAddDeadlineModal()" 
                     class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-xs hover:shadow transition cursor-pointer">
                 <i class="fa-solid fa-plus text-xs"></i>
                 <span>Add Deadline</span>
             </button>
+            <?php endif; ?>
         </div>
 
         <!-- Deadlines List -->
@@ -714,11 +818,17 @@ Generated Reports
                         <!-- Left: Status checkbox + Title & Category -->
                         <div class="flex items-center gap-3.5 min-w-0 flex-1">
                             <!-- Quick Toggle Completion -->
+                            <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
                             <a href="?toggle_deadline=<?php echo $dl['id']; ?>" 
                                title="<?php echo $is_completed ? 'Mark as Pending' : 'Mark as Completed'; ?>" 
                                class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition cursor-pointer <?php echo $is_completed ? 'bg-emerald-600 text-white shadow-sm' : 'border-2 border-slate-300 hover:border-emerald-500 text-transparent hover:text-emerald-500'; ?>">
                                 <i class="fa-solid fa-check text-xs"></i>
                             </a>
+                            <?php else: ?>
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 <?php echo $is_completed ? 'bg-emerald-600 text-white shadow-sm' : 'border-2 border-slate-300 text-transparent'; ?>">
+                                <i class="fa-solid fa-check text-xs"></i>
+                            </div>
+                            <?php endif; ?>
 
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -748,6 +858,7 @@ Generated Reports
 
                             <!-- Actions -->
                             <div class="flex items-center gap-1">
+                                <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
                                 <!-- Edit / Update Button -->
                                 <button type="button" 
                                         onclick="openUpdateDeadlineModal(<?php echo htmlspecialchars(json_encode($dl), ENT_QUOTES, 'UTF-8'); ?>)" 
@@ -755,7 +866,9 @@ Generated Reports
                                         class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 flex items-center justify-center transition cursor-pointer text-xs">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
+                                <?php endif; ?>
                                 
+                                <?php if (canDeletePolicy()): ?>
                                 <!-- Delete Button -->
                                 <a href="?delete_deadline=<?php echo $dl['id']; ?>" 
                                    onclick="return confirm('Are you sure you want to delete this deadline?');"
@@ -763,6 +876,7 @@ Generated Reports
                                    class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center transition cursor-pointer text-xs">
                                     <i class="fa-solid fa-trash"></i>
                                 </a>
+                                <?php endif; ?>
                             </div>
                         </div>
 

@@ -1,6 +1,20 @@
 <?php
 // logout.php - Centralized logout handler
-session_start();
+require_once __DIR__ . '/config/config.php';
+
+// Log logout activity if user was signed in
+if (isset($_SESSION['username'])) {
+    $conn = getDBConnection();
+    $user = $_SESSION['username'];
+    $actionText = "User logged out";
+    $moduleText = "Authentication";
+    $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
+    if ($logStmt) {
+        $logStmt->bind_param("sss", $user, $actionText, $moduleText);
+        @$logStmt->execute();
+        @$logStmt->close();
+    }
+}
 
 // Clear all session variables
 $_SESSION = array();
@@ -17,13 +31,6 @@ if (ini_get("session.use_cookies")) {
 // Destroy the session
 session_destroy();
 
-// Redirect to login page
-header("Location: login.php");
+// Redirect to login page with friendly logout feedback
+header("Location: login.php?logged_out=1");
 exit();
-?>
-<?php
-session_start();
-session_destroy();
-header("Location: login.php");
-exit();
-?>

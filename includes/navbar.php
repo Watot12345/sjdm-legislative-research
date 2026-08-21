@@ -216,8 +216,8 @@ $logout_url = (strpos($_SERVER['PHP_SELF'], '/modules/') !== false || strpos($_S
                     <p class="font-semibold text-slate-800 leading-tight">
                         <?php echo htmlspecialchars($username); ?>
                     </p>
-                    <p class="text-xs text-slate-500">
-                        System Administrator
+                    <p class="text-xs text-slate-500 font-medium">
+                        <?php echo htmlspecialchars(function_exists('getRoleLabel') ? getRoleLabel($_SESSION['role'] ?? 'viewer') : ucfirst($_SESSION['role'] ?? 'viewer')); ?>
                     </p>
                 </div>
                 <i class="fa-solid fa-chevron-down text-xs text-slate-500"></i>
@@ -527,3 +527,5 @@ function markAllAsRead() {
     });
 })();
 </script>
+
+<?php renderToast(); ?>

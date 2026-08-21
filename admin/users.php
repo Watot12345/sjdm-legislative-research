@@ -1,16 +1,12 @@
 <?php
 session_start();
+require_once __DIR__ . '/../config/config.php';
 
-if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../login.php");
-    exit();
-}
+// Enforce Strict Admin-Only Access via RBAC
+requireRole(ROLE_ADMIN);
 
 $pageTitle = "User Management";
 $username = $_SESSION['username'];
-
-// Database connection
-require_once __DIR__ . '/../config/config.php';
 $conn = getDBConnection();
 
 // ============================================
@@ -23,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_user'])) {
     $email = $conn->real_escape_string($_POST['email']);
     $role = $conn->real_escape_string($_POST['role']);
     $department = $conn->real_escape_string($_POST['department']);
+    $two_factor_enabled = isset($_POST['two_factor_enabled']) ? 1 : 0;
     
     // Check if username already exists
     $check_sql = "SELECT * FROM users WHERE username = '$new_username'";
@@ -31,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_user'])) {
     if ($check_result && $check_result->num_rows > 0) {
         $error_msg = "Username already exists. Please choose a different username.";
     } else {
-        $insert_sql = "INSERT INTO users (username, password, full_name, email, role, department, created_at, created_by) 
-                       VALUES ('$new_username', '$new_password', '$full_name', '$email', '$role', '$department', NOW(), '$username')";
+        $insert_sql = "INSERT INTO users (username, password, full_name, email, role, department, two_factor_enabled, created_at, created_by) 
+                       VALUES ('$new_username', '$new_password', '$full_name', '$email', '$role', '$department', $two_factor_enabled, NOW(), '$username')";
         
         if ($conn->query($insert_sql) === TRUE) {
             $log_sql = "INSERT INTO activity_logs (user, action, module, timestamp) 
@@ -57,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_user'])) {
     $role = $conn->real_escape_string($_POST['role']);
     $department = $conn->real_escape_string($_POST['department']);
     $status = $conn->real_escape_string($_POST['status']);
+    $two_factor_enabled = isset($_POST['two_factor_enabled']) ? 1 : 0;
     
     $update_sql = "UPDATE users SET 
                    full_name = '$full_name',
@@ -64,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_user'])) {
                    role = '$role',
                    department = '$department',
                    status = '$status',
+                   two_factor_enabled = $two_factor_enabled,
                    updated_at = NOW()
                    WHERE id = $user_id";
     
@@ -134,6 +133,7 @@ $users = $conn->query($users_sql);
 $total_users = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
 $admin_count = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")->fetch_assoc()['count'];
 $researcher_count = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'researcher'")->fetch_assoc()['count'];
+$data_encoder_count = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'data_encoder'")->fetch_assoc()['count'];
 $viewer_count = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'viewer'")->fetch_assoc()['count'];
 $active_users = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'active'")->fetch_assoc()['count'];
 
@@ -159,7 +159,7 @@ if (isset($_GET['view_user'])) {
     }
 }
 
-$roles = ['admin', 'researcher', 'viewer'];
+$roles = ['admin', 'researcher', 'data_encoder', 'viewer'];
 $departments = ['Legislative', 'Executive', 'Judicial', 'Finance', 'Planning', 'Health', 'Education', 'Agriculture', 'Environment', 'Infrastructure', 'Social Welfare', 'Other'];
 $statuses = ['active', 'inactive', 'suspended'];
 ?>
@@ -250,7 +250,8 @@ $statuses = ['active', 'inactive', 'suspended'];
         
         .role-badge.admin { background: #dbeafe; color: #1e40af; }
         .role-badge.researcher { background: #ede9fe; color: #5b21b6; }
-        .role-badge.viewer { background: #f3e8ff; color: #6b21a5; }
+        .role-badge.data_encoder { background: #fef3c7; color: #b45309; }
+        .role-badge.viewer { background: #f1f5f9; color: #475569; }
         
         .modal {
             display: none;
@@ -368,70 +369,83 @@ $statuses = ['active', 'inactive', 'suspended'];
             </div>
 
             <!-- STATISTICS -->
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-                <div class="bg-white rounded-xl shadow p-6 card-hover">
-                    <div class="flex justify-between">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-slate-500">Total Users</p>
-                            <h2 class="text-4xl font-bold mt-2"><?php echo $total_users; ?></h2>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Users</p>
+                            <h2 class="text-3xl font-extrabold text-slate-800 mt-2"><?php echo $total_users; ?></h2>
                         </div>
-                        <div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
-                            <i class="fa-solid fa-users text-blue-700 text-2xl"></i>
+                        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                            <i class="fa-solid fa-users text-xl"></i>
                         </div>
                     </div>
-                    <p class="text-blue-600 mt-4">All Users</p>
+                    <p class="text-blue-600 text-xs font-medium mt-3">All Accounts</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow p-6 card-hover">
-                    <div class="flex justify-between">
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-slate-500">Admins</p>
-                            <h2 class="text-4xl font-bold mt-2"><?php echo $admin_count; ?></h2>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Admins</p>
+                            <h2 class="text-3xl font-extrabold text-slate-800 mt-2"><?php echo $admin_count; ?></h2>
                         </div>
-                        <div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
-                            <i class="fa-solid fa-user-shield text-blue-700 text-2xl"></i>
+                        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center">
+                            <i class="fa-solid fa-user-shield text-xl"></i>
                         </div>
                     </div>
-                    <p class="text-blue-600 mt-4">Administrators</p>
+                    <p class="text-blue-700 text-xs font-medium mt-3">System Admins</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow p-6 card-hover">
-                    <div class="flex justify-between">
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-slate-500">Researchers</p>
-                            <h2 class="text-4xl font-bold mt-2"><?php echo $researcher_count; ?></h2>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Researchers</p>
+                            <h2 class="text-3xl font-extrabold text-slate-800 mt-2"><?php echo $researcher_count; ?></h2>
                         </div>
-                        <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
-                            <i class="fa-solid fa-microscope text-purple-700 text-2xl"></i>
+                        <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center">
+                            <i class="fa-solid fa-microscope text-xl"></i>
                         </div>
                     </div>
-                    <p class="text-purple-600 mt-4">Researchers</p>
+                    <p class="text-purple-700 text-xs font-medium mt-3">Policy Analysts</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow p-6 card-hover">
-                    <div class="flex justify-between">
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-slate-500">Viewers</p>
-                            <h2 class="text-4xl font-bold mt-2"><?php echo $viewer_count; ?></h2>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Data Encoders</p>
+                            <h2 class="text-3xl font-extrabold text-slate-800 mt-2"><?php echo $data_encoder_count; ?></h2>
                         </div>
-                        <div class="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <i class="fa-solid fa-eye text-indigo-700 text-2xl"></i>
+                        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                            <i class="fa-solid fa-keyboard text-xl"></i>
                         </div>
                     </div>
-                    <p class="text-indigo-600 mt-4">View Only</p>
+                    <p class="text-amber-700 text-xs font-medium mt-3">Data Specialists</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow p-6 card-hover">
-                    <div class="flex justify-between">
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-slate-500">Active Users</p>
-                            <h2 class="text-4xl font-bold mt-2"><?php echo $active_users; ?></h2>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Viewers</p>
+                            <h2 class="text-3xl font-extrabold text-slate-800 mt-2"><?php echo $viewer_count; ?></h2>
                         </div>
-                        <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-                            <i class="fa-solid fa-circle-check text-green-700 text-2xl"></i>
+                        <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                            <i class="fa-solid fa-eye text-xl"></i>
                         </div>
                     </div>
-                    <p class="text-green-600 mt-4">Currently Active</p>
+                    <p class="text-slate-600 text-xs font-medium mt-3">Read Only</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow p-5 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Active</p>
+                            <h2 class="text-3xl font-extrabold text-emerald-700 mt-2"><?php echo $active_users; ?></h2>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                            <i class="fa-solid fa-circle-check text-xl"></i>
+                        </div>
+                    </div>
+                    <p class="text-emerald-700 text-xs font-medium mt-3">Status: Active</p>
                 </div>
             </div>
 
@@ -484,11 +498,20 @@ $statuses = ['active', 'inactive', 'suspended'];
                                         </div>
                                         <div class="flex items-center gap-2 flex-wrap">
                                             <span class="role-badge <?php echo $user['role']; ?>">
-                                                <?php echo ucfirst($user['role']); ?>
+                                                <?php echo htmlspecialchars(getRoleLabel($user['role'])); ?>
                                             </span>
                                             <span class="status-badge <?php echo $user['status'] ?? 'active'; ?>">
                                                 <?php echo ucfirst($user['status'] ?? 'Active'); ?>
                                             </span>
+                                            <?php if ($user['two_factor_enabled'] ?? 1): ?>
+                                                <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs px-2.5 py-1 rounded-full font-semibold flex items-center gap-1">
+                                                    <i class="fa-solid fa-shield-halved text-emerald-500 text-[10px]"></i> 2FA
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="bg-slate-100 text-slate-500 border border-slate-200 text-xs px-2.5 py-1 rounded-full font-semibold flex items-center gap-1">
+                                                    <i class="fa-solid fa-shield-halved text-slate-400 text-[10px]"></i> No 2FA
+                                                </span>
+                                            <?php endif; ?>
                                             <a href="?view_user=<?php echo $user['id']; ?>" 
                                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm btn-scale">
                                                 <i class="fa-solid fa-eye"></i>
@@ -575,7 +598,7 @@ $statuses = ['active', 'inactive', 'suspended'];
                         <select name="role" class="form-control" required>
                             <option value="">Select Role</option>
                             <?php foreach($roles as $role): ?>
-                                <option value="<?php echo $role; ?>"><?php echo ucfirst($role); ?></option>
+                                <option value="<?php echo $role; ?>"><?php echo htmlspecialchars(getRoleLabel($role)); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -588,6 +611,13 @@ $statuses = ['active', 'inactive', 'suspended'];
                                 <option value="<?php echo $dept; ?>"><?php echo $dept; ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="md:col-span-2 p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer">
+                            <input type="checkbox" name="two_factor_enabled" value="1" checked class="w-4 h-4 text-blue-600 rounded">
+                            <span>Enable Two-Factor Authentication (2FA Email OTP)</span>
+                        </label>
                     </div>
                 </div>
                 
@@ -644,7 +674,7 @@ $statuses = ['active', 'inactive', 'suspended'];
                         <select name="role" class="form-control" required>
                             <?php foreach($roles as $role): ?>
                                 <option value="<?php echo $role; ?>" <?php echo ($edit_user['role'] == $role) ? 'selected' : ''; ?>>
-                                    <?php echo ucfirst($role); ?>
+                                    <?php echo htmlspecialchars(getRoleLabel($role)); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -671,6 +701,13 @@ $statuses = ['active', 'inactive', 'suspended'];
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="md:col-span-2 p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer">
+                            <input type="checkbox" name="two_factor_enabled" value="1" <?php echo ($edit_user['two_factor_enabled'] ?? 1) ? 'checked' : ''; ?> class="w-4 h-4 text-blue-600 rounded">
+                            <span>Enable Two-Factor Authentication (2FA Email OTP)</span>
+                        </label>
                     </div>
                 </div>
                 
@@ -712,7 +749,7 @@ $statuses = ['active', 'inactive', 'suspended'];
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <p class="text-sm text-slate-500">Role</p>
-                    <p class="font-semibold"><span class="role-badge <?php echo $view_user['role']; ?>"><?php echo ucfirst($view_user['role']); ?></span></p>
+                    <p class="font-semibold"><span class="role-badge <?php echo $view_user['role']; ?>"><?php echo htmlspecialchars(getRoleLabel($view_user['role'])); ?></span></p>
                 </div>
                 <div>
                     <p class="text-sm text-slate-500">Status</p>

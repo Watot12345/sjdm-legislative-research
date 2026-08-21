@@ -7,7 +7,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- --------------------------------------------------------------------
 -- 1. Table: users
--- Core system authentication, RBAC roles (admin, researcher, viewer),
+-- Core system authentication, RBAC roles (admin, researcher, data_encoder, viewer),
 -- and account status management.
 -- --------------------------------------------------------------------
 DROP TABLE IF EXISTS `users`;
@@ -17,15 +17,52 @@ CREATE TABLE `users` (
   `password` VARCHAR(255) NOT NULL,
   `full_name` VARCHAR(100) DEFAULT NULL,
   `email` VARCHAR(100) DEFAULT NULL,
-  `role` ENUM('admin','researcher','viewer') DEFAULT 'viewer',
+  `role` ENUM('admin','researcher','data_encoder','viewer') DEFAULT 'viewer',
   `department` VARCHAR(100) DEFAULT NULL,
   `status` ENUM('active','inactive','suspended') DEFAULT 'active',
+  `two_factor_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  `two_factor_type` ENUM('email_otp','totp') NOT NULL DEFAULT 'email_otp',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `created_by` VARCHAR(50) DEFAULT NULL,
   `last_login` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------------------
+-- 1.1 Table: user_otps
+-- Manages secure 6-digit one-time passwords for 2FA authentication.
+-- --------------------------------------------------------------------
+DROP TABLE IF EXISTS `user_otps`;
+CREATE TABLE `user_otps` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
+  `otp_code` VARCHAR(255) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `is_used` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_otp` (`user_id`, `expires_at`, `is_used`),
+  CONSTRAINT `fk_user_otps_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------------------
+-- 1.2 Table: user_trusted_devices
+-- Stores 12-hour trusted device tokens to prevent repetitive OTP prompts.
+-- --------------------------------------------------------------------
+DROP TABLE IF EXISTS `user_trusted_devices`;
+CREATE TABLE `user_trusted_devices` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
+  `device_token` VARCHAR(64) NOT NULL UNIQUE,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `user_agent` VARCHAR(255) DEFAULT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_device_token` (`device_token`, `user_id`, `expires_at`),
+  CONSTRAINT `fk_trusted_devices_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------------------
@@ -448,12 +485,14 @@ FROM `reports`;
 
 -- ====================================================================
 -- INITIAL SEED DATA
--- Default Admin User Accounts (Credentials: admin / admin123, admin2 / admin123)
+-- Default Role User Accounts (Password for all seed accounts: admin123)
 -- ====================================================================
-INSERT INTO `users` (`username`, `password`, `full_name`, `email`, `role`, `department`, `status`, `created_by`)
+INSERT INTO `users` (`username`, `password`, `full_name`, `email`, `role`, `department`, `status`, `two_factor_enabled`, `created_by`)
 VALUES 
-  ('admin', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'System Administrator', 'admin@sjdm.gov.ph', 'admin', 'Legislative Research Division', 'active', 'system'),
-  ('admin2', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'Legislative Administrator', 'admin2@sjdm.gov.ph', 'admin', 'Sanggunian Panlungsod', 'active', 'system')
+  ('admin', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'System Administrator', 'admin@sjdm.gov.ph', 'admin', 'Legislative Research Division', 'active', 1, 'system'),
+  ('researcher', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'Senior Legislative Researcher', 'researcher@sjdm.gov.ph', 'researcher', 'Policy Research & Analysis Division', 'active', 1, 'system'),
+  ('encoder', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'Data Specialist & Records Officer', 'encoder@sjdm.gov.ph', 'data_encoder', 'Records & Archives Management', 'active', 1, 'system'),
+  ('viewer', '$2y$10$e.w0S8D84k0FwIerCsqpvuY4b3/9KjW8iG76vW3S5291.ZqV81p9K', 'Legislative Reviewer / Council Liaison', 'viewer@sjdm.gov.ph', 'viewer', 'Sangguniang Panlungsod (City Council)', 'active', 1, 'system')
 ON DUPLICATE KEY UPDATE `username`=`username`;
 
 -- Sample Policy Proposals for Testing

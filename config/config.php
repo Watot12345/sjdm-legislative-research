@@ -44,6 +44,18 @@ class Environment {
         return self::$variables[$key] ?? $_ENV[$key] ?? getenv($key) ?: $default;
     }
     
+    public static function getBool($key, $default = true) {
+        $value = self::get($key, null);
+        if ($value === null) {
+            return (bool)$default;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        $lower = strtolower(trim((string)$value));
+        return in_array($lower, ['true', '1', 'on', 'yes'], true);
+    }
+    
     public static function all() {
         return self::$variables;
     }
@@ -105,3 +117,12 @@ function getGeminiConfig() {
         'temperature' => Environment::get('GEMINI_TEMPERATURE', 0.7)
     ];
 }
+
+// ============================================
+// AUTH, 2FA & TOAST NOTIFICATION HELPERS
+// ============================================
+require_once __DIR__ . '/../includes/auth_helper.php';
+require_once __DIR__ . '/../includes/toast.php';
+
+// Enforce 12-hour session lifetime limit on all authenticated requests
+enforceSessionTimeout((int)Environment::get('AUTH_SESSION_LIFETIME_SECONDS', 43200));

@@ -14,14 +14,14 @@ $username = $_SESSION['username'];
 $pageTitle = "Settings";
 
 // Fetch full user record
-$stmt = $conn->prepare("SELECT id,username,full_name,email,role,department,status,created_at,last_login FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT id,username,full_name,email,role,department,status,two_factor_enabled,two_factor_type,created_at,last_login FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$user) {
-    $stmt2 = $conn->prepare("SELECT id,username,full_name,email,role,department,status,created_at,last_login FROM users WHERE username = ?");
+    $stmt2 = $conn->prepare("SELECT id,username,full_name,email,role,department,status,two_factor_enabled,two_factor_type,created_at,last_login FROM users WHERE username = ?");
     $stmt2->bind_param("s", $username);
     $stmt2->execute();
     $user = $stmt2->get_result()->fetch_assoc();
@@ -88,6 +88,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         $upw->close();
     }
 }
+
+// ─── Handle 2FA Update ────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_2fa'])) {
+    $active_tab = 'security';
+    $enable2FA  = isset($_POST['two_factor_enabled']) ? 1 : 0;
+    $up2 = $conn->prepare("UPDATE users SET two_factor_enabled=?, updated_at=NOW() WHERE id=?");
+    $up2->bind_param("ii", $enable2FA, $user['id']);
+    if ($up2->execute()) {
+        $user['two_factor_enabled'] = $enable2FA;
+        $actionText = $enable2FA ? "Enabled Two-Factor Authentication (2FA)" : "Disabled Two-Factor Authentication (2FA)";
+        $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, 'Security', NOW())");
+        if ($logStmt) {
+            $logStmt->bind_param("ss", $username, $actionText);
+            @$logStmt->execute();
+            @$logStmt->close();
+        }
+        $success_msg = $enable2FA ? "Two-Factor Authentication has been enabled." : "Two-Factor Authentication has been disabled.";
+    } else {
+        $error_msg = "Failed to update 2FA configuration.";
+    }
+    $up2->close();
+}
+
+// ─── Handle Revoke Trusted Devices ────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['revoke_trusted_devices'])) {
+    $active_tab = 'security';
+    revokeTrustedDevices($user['id']);
+    $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, 'Revoked all 12-hour trusted devices', 'Security', NOW())");
+    if ($logStmt) {
+        $logStmt->bind_param("s", $username);
+        @$logStmt->execute();
+        @$logStmt->close();
+    }
+    $success_msg = "All 12-hour trusted devices have been revoked. An OTP will be required on your next login.";
+}
+
+// ─── Trusted Devices Count ───────────────────────────────────────────────────
+$dev_res = $conn->query("SELECT COUNT(*) as cnt FROM user_trusted_devices WHERE user_id = " . (int)$user['id'] . " AND expires_at > NOW()");
+$trusted_devices_count = (int)($dev_res ? $dev_res->fetch_assoc()['cnt'] : 0);
+
+// ─── 12-Hour Session Expiration Stats ────────────────────────────────────────
+$session_start_time = $_SESSION['login_time'] ?? time();
+$session_lifetime = (int)Environment::get('AUTH_SESSION_LIFETIME_SECONDS', 43200);
+$session_expires_at = $session_start_time + $session_lifetime;
+$session_remaining_seconds = max(0, $session_expires_at - time());
+$session_remaining_hours = floor($session_remaining_seconds / 3600);
+$session_remaining_minutes = floor(($session_remaining_seconds % 3600) / 60);
 
 // ─── Activity count ───────────────────────────────────────────────────────────
 $act_res = $conn->query("SELECT COUNT(*) as cnt FROM activity_logs WHERE user='" . $conn->real_escape_string($username) . "'");
@@ -261,6 +308,12 @@ $initials = strtoupper(substr($user['full_name'] ?? $username, 0, 1));
                         class="settings-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-slate-700">
                         <i class="fa-solid fa-lock w-5 text-center text-blue-600"></i>
                         <span>Change Password</span>
+                    </button>
+
+                    <button onclick="switchSettingsTab('security')" id="nav-security"
+                        class="settings-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-slate-700">
+                        <i class="fa-solid fa-shield-halved w-5 text-center text-blue-600"></i>
+                        <span>Security & 2FA</span>
                     </button>
 
                     <button onclick="switchSettingsTab('notifications')" id="nav-notifications"
@@ -551,6 +604,121 @@ $initials = strtoupper(substr($user['full_name'] ?? $username, 0, 1));
                 </div>
 
                 <!-- ─────────────────────────────────────────────────────
+                     TAB: Security & 2FA (Two-Factor Authentication & 12h Session)
+                ───────────────────────────────────────────────────── -->
+                <div id="panel-security" class="settings-tab-panel">
+                    <div class="space-y-5">
+                        
+                        <!-- 2FA Master Switch Card -->
+                        <div class="settings-card bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                            <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                        <i class="fa-solid fa-shield-halved text-blue-700"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-base font-bold text-slate-800">Two-Factor Authentication (2FA)</h4>
+                                        <p class="text-xs text-slate-500">Secure sign-in with 6-digit email verification</p>
+                                    </div>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold <?php echo ($user['two_factor_enabled'] ?? 1) ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'; ?>">
+                                    <i class="fa-solid <?php echo ($user['two_factor_enabled'] ?? 1) ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-slate-400'; ?> mr-1"></i>
+                                    <?php echo ($user['two_factor_enabled'] ?? 1) ? 'Enabled' : 'Disabled'; ?>
+                                </span>
+                            </div>
+
+                            <form method="POST" class="space-y-5">
+                                <input type="hidden" name="update_2fa" value="1">
+                                
+                                <div class="flex items-start justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 gap-4">
+                                    <div class="space-y-1">
+                                        <label for="two_factor_toggle" class="text-sm font-semibold text-slate-800 cursor-pointer">
+                                            Require 2FA Code on Login
+                                        </label>
+                                        <p class="text-xs text-slate-500 leading-relaxed">
+                                            When enabled, signing in requires a 6-digit OTP sent to your registered email (<strong class="text-slate-700"><?php echo htmlspecialchars($user['email'] ?? 'email'); ?></strong>) via PHPMailer.
+                                        </p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                                        <input type="checkbox" name="two_factor_enabled" id="two_factor_toggle" value="1" <?php echo ($user['two_factor_enabled'] ?? 1) ? 'checked' : ''; ?> class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+
+                                <div class="flex justify-end">
+                                    <button type="submit" class="bg-blue-700 hover:bg-blue-800 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 shadow-sm shadow-blue-200">
+                                        <i class="fa-solid fa-floppy-disk"></i> Save 2FA Settings
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- 12-Hour Session Expiration Status Card -->
+                        <div class="settings-card bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                            <div class="flex items-center gap-3 mb-5">
+                                <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                                    <i class="fa-solid fa-hourglass-half text-amber-600"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-base font-bold text-slate-800">12-Hour Session Expiration Policy</h4>
+                                    <p class="text-xs text-slate-500">Continuous session security lifecycle</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Session Started</p>
+                                    <p class="text-sm font-bold text-slate-800 mt-1"><?php echo date('M j, g:i A', $session_start_time); ?></p>
+                                </div>
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hard Expiration</p>
+                                    <p class="text-sm font-bold text-slate-800 mt-1"><?php echo date('M j, g:i A', $session_expires_at); ?></p>
+                                </div>
+                                <div class="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-blue-600">Time Remaining</p>
+                                    <p class="text-sm font-bold text-blue-900 mt-1"><?php echo $session_remaining_hours; ?>h <?php echo $session_remaining_minutes; ?>m</p>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-500 mt-4 leading-relaxed">
+                                <i class="fa-solid fa-circle-info text-blue-500 mr-1"></i>
+                                For data protection and compliance, all active sessions strictly expire after <strong>12 hours</strong>, terminating background cookies and requiring re-authentication.
+                            </p>
+                        </div>
+
+                        <!-- 12-Hour Trusted Devices Manager -->
+                        <div class="settings-card bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                            <div class="flex items-center justify-between mb-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                                        <i class="fa-solid fa-laptop-code text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-base font-bold text-slate-800">12-Hour Trusted Devices</h4>
+                                        <p class="text-xs text-slate-500">Browsers that bypass OTP verification</p>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                    <?php echo $trusted_devices_count; ?> Active
+                                </span>
+                            </div>
+
+                            <p class="text-xs text-slate-600 leading-relaxed mb-4">
+                                When you check <em>"Remember this device for 12 hours"</em> upon sign-in, an encrypted device token is saved to prevent repeated OTP requests for 12 hours.
+                            </p>
+
+                            <form method="POST" onsubmit="return confirm('Revoke all trusted devices? You will be prompted for an OTP on your next login.');">
+                                <input type="hidden" name="revoke_trusted_devices" value="1">
+                                <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2">
+                                    <i class="fa-solid fa-ban"></i> Revoke All Trusted Devices
+                                </button>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ─────────────────────────────────────────────────────
                      TAB 3: Notification Preferences
                 ───────────────────────────────────────────────────── -->
                 <div id="panel-notifications" class="settings-tab-panel">
@@ -802,7 +970,7 @@ $initials = strtoupper(substr($user['full_name'] ?? $username, 0, 1));
 
 <script>
 // ─── Tab Switching ────────────────────────────────────────────────────────────
-const TABS = ['profile', 'password', 'notifications', 'appearance'];
+const TABS = ['profile', 'password', 'security', 'notifications', 'appearance'];
 
 function switchSettingsTab(tab) {
     TABS.forEach(t => {

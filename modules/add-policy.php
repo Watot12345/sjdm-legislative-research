@@ -1,16 +1,12 @@
 <?php
 session_start();
+require_once __DIR__ . '/../config/config.php';
 
-if (!isset($_SESSION['username'])) {
-    header("Location: ../login.php");
-    exit();
-}
+// Enforce RBAC (Admin and Researcher only)
+requireRole([ROLE_ADMIN, ROLE_RESEARCHER]);
 
 $username = $_SESSION['username'];
 $pageTitle = "Add New Policy";
-
-// Database connection
-require_once __DIR__ . '/../config/config.php';
 $conn = getDBConnection();
 
 // ============================================

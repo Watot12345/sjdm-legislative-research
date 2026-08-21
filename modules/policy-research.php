@@ -67,6 +67,11 @@ if (isset($_GET['get_citations_by_category'])) {
 // HANDLE: Manual Policy Submission
 // ============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy'])) {
+    if (!canEditPolicy()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to create policies.'];
+        header("Location: policy-research.php");
+        exit();
+    }
     $policy_title = $conn->real_escape_string($_POST['policy_title']);
     $policy_issues = $conn->real_escape_string($_POST['policy_issues']);
     $policy_objectives = $conn->real_escape_string($_POST['policy_objectives']);
@@ -109,6 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy']
 // HANDLE: Update Existing Policy
 // ============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_policy'])) {
+    if (!canEditPolicy()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to edit policies.'];
+        header("Location: policy-research.php");
+        exit();
+    }
     $doc_id = $conn->real_escape_string($_POST['doc_id']);
     $policy_title = $conn->real_escape_string($_POST['policy_title']);
     $policy_issues = $conn->real_escape_string($_POST['policy_issues']);
@@ -289,6 +299,11 @@ Format the response with clear sections and bullet points. Use only plain text."
 // HANDLE: Generate Legal Citations for a Document (Full Analysis)
 // ============================================
 if (isset($_GET['analyze_doc_id'])) {
+    if (!canRunAI()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to run AI analysis.'];
+        header("Location: policy-research.php");
+        exit();
+    }
     $doc_id = $_GET['analyze_doc_id'];
     
     $doc_sql = "SELECT * FROM policy_documents WHERE document_id = '$doc_id'";
@@ -346,6 +361,11 @@ if (isset($_GET['analyze_doc_id'])) {
 // HANDLE: Delete Policy
 // ============================================
 if (isset($_GET['delete_doc_id'])) {
+    if (!canDeletePolicy()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'Only administrators can delete policy documents.'];
+        header("Location: policy-research.php");
+        exit();
+    }
     $doc_id = $conn->real_escape_string($_GET['delete_doc_id']);
     $delete_sql = "DELETE FROM policy_documents WHERE document_id = '$doc_id'";
     if ($conn->query($delete_sql) === TRUE) {
@@ -872,10 +892,12 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                     </div>
                 </div>
                 <div class="flex gap-3">
+                    <?php if (canEditPolicy()): ?>
                     <a href="?create=1" class="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-lg shadow btn-scale font-semibold flex items-center gap-2">
                         <i class="fa-solid fa-plus"></i>
                         Create New Policy
                     </a>
+                    <?php endif; ?>
                     <a href="data-collection.php" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow btn-scale font-semibold flex items-center gap-2">
                         <i class="fa-solid fa-arrow-right"></i>
                         Data Collection
@@ -929,7 +951,7 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
             <!-- ============================================ -->
             <!-- CREATE / EDIT POLICY MODAL POPUP -->
             <!-- ============================================ -->
-            <?php if (isset($_GET['create']) || ($edit_mode && $selected_doc)): ?>
+            <?php if (canEditPolicy() && (isset($_GET['create']) || ($edit_mode && $selected_doc))): ?>
             <div id="policyCreateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6 overflow-y-auto animate-fade-in no-print">
                 <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[90vh]">
 
@@ -1112,7 +1134,7 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                                 </div>
 
                                 <div class="flex gap-2">
-                                    <?php if ($edit_mode && $selected_doc): ?>
+                                    <?php if ($edit_mode && $selected_doc && canDeletePolicy()): ?>
                                         <button type="button" 
                                                 onclick="openConfirmModal('Delete Policy', 'Are you sure you want to delete this policy document? This action cannot be undone.', 'policy-research.php?delete_doc_id=<?php echo $selected_doc['document_id']; ?>', 'bg-red-600 hover:bg-red-700', 'bg-gradient-to-r from-red-900 to-red-700')"
                                                 class="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
@@ -1153,23 +1175,27 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                         </p>
                     </div>
                     <div class="flex gap-3 flex-wrap">
-                        <?php if ($selected_doc['legal_analysis_status'] != 'Completed'): ?>
+                        <?php if ($selected_doc['legal_analysis_status'] != 'Completed' && canRunAI()): ?>
                             <a href="?analyze_doc_id=<?php echo $selected_doc['document_id']; ?>" 
                                class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg btn-scale flex items-center gap-2">
                                 <i class="fa-solid fa-gavel"></i>
                                 Generate Legal Citations
                             </a>
                         <?php endif; ?>
+                        <?php if (canUploadData()): ?>
                         <a href="data-collection.php?doc_id=<?php echo $selected_doc['document_id']; ?>&title=<?php echo urlencode($selected_doc['title']); ?>&description=<?php echo urlencode($selected_doc['description']); ?>&category=<?php echo urlencode($selected_doc['category']); ?>" 
                            class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg btn-scale flex items-center gap-2">
                             <i class="fa-solid fa-arrow-right"></i>
                             Submit to Data Collection
                         </a>
+                        <?php endif; ?>
+                        <?php if (canEditPolicy()): ?>
                         <a href="policy-research.php?edit=1&doc_id=<?php echo $selected_doc['document_id']; ?>" 
                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-lg btn-scale flex items-center gap-2">
                             <i class="fa-solid fa-pen"></i>
                             Edit Policy
                         </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -1259,23 +1285,27 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                                                title="View Legal Analysis">
                                                 <i class="fa-solid fa-eye"></i>
                                             </a>
+                                            <?php if (canEditPolicy()): ?>
                                             <a href="policy-research.php?edit=1&doc_id=<?php echo $doc['document_id']; ?>" 
                                                class="bg-yellow-500 hover:bg-yellow-600 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm"
                                                title="Edit Policy">
                                                 <i class="fa-solid fa-pen"></i>
                                             </a>
-                                            <?php if (!$is_analyzed): ?>
+                                            <?php endif; ?>
+                                            <?php if (!$is_analyzed && canRunAI()): ?>
                                                 <a href="?analyze_doc_id=<?php echo $doc['document_id']; ?>" 
                                                    class="bg-purple-600 hover:bg-purple-700 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm"
                                                    title="Generate Legal Citations">
                                                     <i class="fa-solid fa-gavel"></i>
                                                 </a>
                                             <?php endif; ?>
+                                            <?php if (canUploadData()): ?>
                                             <a href="data-collection.php?doc_id=<?php echo $doc['document_id']; ?>&title=<?php echo urlencode($doc['title']); ?>&description=<?php echo urlencode($doc['description']); ?>&category=<?php echo urlencode($doc['category']); ?>" 
                                                class="bg-green-600 hover:bg-green-700 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm"
                                                title="Submit to Data Collection">
                                                 <i class="fa-solid fa-arrow-right"></i>
                                             </a>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -1753,7 +1783,7 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                     <!-- MODAL FOOTER ACTION BUTTONS -->
                     <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0 flex-wrap gap-3 no-print">
                         <div class="flex gap-2">
-                            <?php if ($selected_doc['legal_analysis_status'] != 'Completed'): ?>
+                            <?php if ($selected_doc['legal_analysis_status'] != 'Completed' && canRunAI()): ?>
                                 <a href="?analyze_doc_id=<?php echo $selected_doc['document_id']; ?>" 
                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
                                     <i class="fa-solid fa-gavel"></i>
@@ -1761,11 +1791,13 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                                 </a>
                             <?php endif; ?>
                             
+                            <?php if (canUploadData()): ?>
                             <a href="data-collection.php?doc_id=<?php echo $selected_doc['document_id']; ?>&title=<?php echo urlencode($selected_doc['title']); ?>&description=<?php echo urlencode($selected_doc['description']); ?>&category=<?php echo urlencode($selected_doc['category']); ?>" 
                                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
                                 <i class="fa-solid fa-arrow-right"></i>
                                 Submit for Data Collection
                             </a>
+                            <?php endif; ?>
                         </div>
 
                         <div class="flex gap-2 items-center flex-wrap">

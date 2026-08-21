@@ -159,7 +159,7 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <span class="sidebar-text text-sm">Dashboard</span>
         </a>
 
-        <!-- Policy Research -->
+        <!-- Policy Research (Admin, Researcher, Viewer, Encoder) -->
         <a href="<?php echo $base_path; ?>modules/policy-research.php"
            data-title="Policy Research"
            title="Policy Research"
@@ -168,7 +168,8 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <span class="sidebar-text text-sm">Policy Research</span>
         </a>
 
-        <!-- Data Collection -->
+        <!-- Data Collection (Admin, Researcher, Data Encoder) -->
+        <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER, ROLE_DATA_ENCODER])): ?>
         <a href="<?php echo $base_path; ?>modules/data-collection.php"
            data-title="Data Collection"
            title="Data Collection"
@@ -176,8 +177,10 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <i class="fa-solid fa-database w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
             <span class="sidebar-text text-sm">Data Collection</span>
         </a>
+        <?php endif; ?>
 
-        <!-- Impact Assessment -->
+        <!-- Impact Assessment (Admin, Researcher, Viewer) -->
+        <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER, ROLE_VIEWER])): ?>
         <a href="<?php echo $base_path; ?>modules/impact-assessment.php"
            data-title="Impact Assessment"
            title="Impact Assessment"
@@ -185,8 +188,10 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <i class="fa-solid fa-chart-line w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
             <span class="sidebar-text text-sm">Impact Assessment</span>
         </a>
+        <?php endif; ?>
 
-        <!-- Benchmarking -->
+        <!-- Benchmarking (Admin, Researcher, Viewer) -->
+        <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER, ROLE_VIEWER])): ?>
         <a href="<?php echo $base_path; ?>modules/benchmarking-analysis.php"
            data-title="Benchmarking & Comparative Analysis"
            title="Benchmarking & Comparative Analysis"
@@ -194,8 +199,10 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <i class="fa-solid fa-scale-balanced w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
             <span class="sidebar-text text-sm">Benchmarking Analysis</span>
         </a>
+        <?php endif; ?>
 
-        <!-- Report Generation -->
+        <!-- Report Generation (Admin, Researcher, Viewer) -->
+        <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER, ROLE_VIEWER])): ?>
         <a href="<?php echo $base_path; ?>modules/report-generation.php"
            data-title="Report Generation"
            title="Report Generation"
@@ -203,8 +210,9 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <i class="fa-solid fa-file-lines w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
             <span class="sidebar-text text-sm">Report Generation</span>
         </a>
+        <?php endif; ?>
 
-        <!-- Data Visualization -->
+        <!-- Data Visualization (All Roles) -->
         <a href="<?php echo $base_path; ?>modules/data-visualization.php"
            data-title="Data Visualization"
            title="Data Visualization"
@@ -213,6 +221,7 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
             <span class="sidebar-text text-sm">Data Visualization</span>
         </a>
 
+        <?php if (function_exists('isAdmin') ? isAdmin() : (isset($_SESSION['role']) && $_SESSION['role'] === 'admin')): ?>
         <div class="pt-2">
             <p class="sidebar-heading px-6 mb-2 text-[11px] font-bold uppercase tracking-wider text-blue-300/80">
                 Administration
@@ -225,11 +234,10 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
                class="sidebar-nav-item flex items-center gap-3.5 px-4 py-2.5 mx-3 rounded-xl transition-all duration-150 group <?php echo $currentPage == 'users.php' ? 'bg-blue-700 text-white font-semibold shadow-md border border-blue-500/30' : 'text-blue-100 hover:bg-blue-800/60 hover:text-white'; ?>">
                 <i class="fa-solid fa-users-gear w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
                 <span class="sidebar-text text-sm flex-1">User Management</span>
-                <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-                    <span class="sidebar-badge bg-yellow-500 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
-                <?php endif; ?>
+                <span class="sidebar-badge bg-yellow-500 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
             </a>
         </div>
+        <?php endif; ?>
 
     </nav>
     
@@ -245,7 +253,7 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
                     <?php echo htmlspecialchars($username); ?>
                 </h4>
                 <p class="text-[11px] text-blue-300 truncate">
-                    <?php echo htmlspecialchars($_SESSION['role'] ?? 'System User'); ?>
+                    <?php echo htmlspecialchars(function_exists('getRoleLabel') ? getRoleLabel($_SESSION['role'] ?? 'viewer') : ucfirst($_SESSION['role'] ?? 'viewer')); ?>
                 </p>
             </div>
         </div>

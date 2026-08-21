@@ -143,22 +143,8 @@ $module_stats = [
     'Legal Documents' => $total_documents
 ];
 
-// Activity Logs Pagination (Max 10 per page)
-$current_page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$items_per_page = 10;
-$offset = ($current_page - 1) * $items_per_page;
-
-$search_activity = trim($_GET['search'] ?? '');
-$act_where = "";
-if (!empty($search_activity)) {
-    $esc_act = $conn->real_escape_string($search_activity);
-    $act_where = " WHERE module LIKE '%$esc_act%' OR action LIKE '%$esc_act%' OR user LIKE '%$esc_act%'";
-}
-
-$total_activity_rows = (int)($conn->query("SELECT COUNT(*) as count FROM activity_logs" . $act_where)->fetch_assoc()['count'] ?? 0);
-$total_activity_pages = max(1, ceil($total_activity_rows / $items_per_page));
-
-$activity_sql = "SELECT * FROM activity_logs" . $act_where . " ORDER BY timestamp DESC LIMIT $offset, $items_per_page";
+// Activity Logs (Frontend Pagination)
+$activity_sql = "SELECT * FROM activity_logs ORDER BY timestamp DESC";
 $activity_result = $conn->query($activity_sql);
 ?>
 
@@ -490,7 +476,7 @@ $activity_result = $conn->query($activity_sql);
     </div>
 
     <!-- ========================================= -->
-    <!-- RECENT MODULE ACTIVITY TABLE WITH PAGINATION (MAX 10) -->
+    <!-- RECENT MODULE ACTIVITY TABLE WITH FRONTEND PAGINATION (MAX 10 PER PAGE) -->
     <!-- ========================================= -->
     <div class="bg-white rounded-xl shadow mb-8 no-print border border-slate-200">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 border-b gap-4">
@@ -500,22 +486,19 @@ $activity_result = $conn->query($activity_sql);
             </div>
 
             <!-- SEARCH BAR -->
-            <form method="GET" action="" class="flex items-center gap-2">
+            <div class="flex items-center gap-2">
                 <div class="relative">
                     <input type="text" 
-                           name="search" 
-                           value="<?php echo htmlspecialchars($search_activity); ?>" 
+                           id="activitySearchInput"
                            oninput="liveFilterActivity(this.value)"
                            placeholder="Search activity, module, user..." 
                            class="w-64 pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
                 </div>
-                <?php if (!empty($search_activity)): ?>
-                    <a href="data-visualization.php" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium">
-                        Clear
-                    </a>
-                <?php endif; ?>
-            </form>
+                <button type="button" id="clearActivitySearchBtn" onclick="clearActivitySearch()" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium hidden">
+                    Clear
+                </button>
+            </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -529,7 +512,7 @@ $activity_result = $conn->query($activity_sql);
                         <th class="text-center p-4">Status</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody class="divide-y divide-slate-100" id="activityTableBody">
                     <?php if ($activity_result && $activity_result->num_rows > 0): ?>
                         <?php while($row = $activity_result->fetch_assoc()): ?>
                         <tr class="hover:bg-slate-50 transition activity-row">
@@ -552,69 +535,31 @@ $activity_result = $conn->query($activity_sql);
                         </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <tr>
+                        <tr id="noActivityRow">
                             <td colspan="5" class="text-center p-8 text-slate-500 text-sm">
                                 <i class="fa-solid fa-inbox text-4xl block mb-4 text-slate-300"></i>
                                 No activity logs found.
                             </td>
                         </tr>
                     <?php endif; ?>
+                    <tr id="noMatchingActivityRow" class="hidden">
+                        <td colspan="5" class="text-center p-8 text-slate-500 text-sm">
+                            <i class="fa-solid fa-magnifying-glass text-4xl block mb-4 text-slate-300"></i>
+                            No activities match your search.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
 
-        <!-- INTERACTIVE PAGINATION FOOTER (MAX 10 PER PAGE) -->
+        <!-- INTERACTIVE FRONTEND PAGINATION FOOTER -->
         <div class="flex flex-wrap justify-between items-center px-6 py-4 border-t gap-3">
-            <?php 
-                $start_entry = $total_activity_rows > 0 ? $offset + 1 : 0;
-                $end_entry = min($offset + $items_per_page, $total_activity_rows);
-            ?>
             <p class="text-sm text-slate-500 font-medium">
-                Showing <strong class="text-slate-800"><?php echo $start_entry; ?></strong> to <strong class="text-slate-800"><?php echo $end_entry; ?></strong> of <strong class="text-slate-800"><?php echo $total_activity_rows; ?></strong> activities
+                Showing <strong class="text-slate-800" id="actStartEntry">0</strong> to <strong class="text-slate-800" id="actEndEntry">0</strong> of <strong class="text-slate-800" id="actTotalEntries">0</strong> activities
             </p>
 
-            <div class="flex items-center gap-1.5 flex-wrap">
-                <!-- PREVIOUS PAGE BUTTON -->
-                <?php if ($current_page > 1): ?>
-                    <a href="?page=<?php echo $current_page - 1; ?><?php echo !empty($search_activity) ? '&search=' . urlencode($search_activity) : ''; ?>" 
-                       class="border border-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1">
-                        <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
-                    </a>
-                <?php else: ?>
-                    <span class="border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 bg-slate-50 cursor-not-allowed flex items-center gap-1 opacity-70">
-                        <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
-                    </span>
-                <?php endif; ?>
-
-                <!-- PAGE NUMBERS -->
-                <?php 
-                $start_page = max(1, $current_page - 2);
-                $end_page = min($total_activity_pages, $current_page + 2);
-                for ($p = $start_page; $p <= $end_page; $p++): 
-                ?>
-                    <?php if ($p == $current_page): ?>
-                        <span class="bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-sm">
-                            <?php echo $p; ?>
-                        </span>
-                    <?php else: ?>
-                        <a href="?page=<?php echo $p; ?><?php echo !empty($search_activity) ? '&search=' . urlencode($search_activity) : ''; ?>" 
-                           class="border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition">
-                            <?php echo $p; ?>
-                        </a>
-                    <?php endif; ?>
-                <?php endfor; ?>
-
-                <!-- NEXT PAGE BUTTON -->
-                <?php if ($current_page < $total_activity_pages): ?>
-                    <a href="?page=<?php echo $current_page + 1; ?><?php echo !empty($search_activity) ? '&search=' . urlencode($search_activity) : ''; ?>" 
-                       class="border border-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1">
-                        Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                    </a>
-                <?php else: ?>
-                    <span class="border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 bg-slate-50 cursor-not-allowed flex items-center gap-1 opacity-70">
-                        Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                    </span>
-                <?php endif; ?>
+            <div class="flex items-center gap-1.5 flex-wrap" id="activityPaginationControls">
+                <!-- Dynamically populated via JS -->
             </div>
         </div>
     </div>
@@ -868,15 +813,136 @@ $activity_result = $conn->query($activity_sql);
         }
     });
 
-    // ---------- Real-time Activity Filter ----------
-    function liveFilterActivity(query) {
-        const filter = query.toLowerCase();
-        const rows = document.querySelectorAll('#activityTable tbody tr.activity-row');
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(filter) ? '' : 'none';
-        });
+    // ---------- Real-time Activity Filter & Frontend Pagination ----------
+    let currentActivityPage = 1;
+    const activityItemsPerPage = 10;
+
+    function getVisibleActivityRows() {
+        const searchInput = document.getElementById('activitySearchInput');
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const allRows = Array.from(document.querySelectorAll('#activityTableBody tr.activity-row'));
+        
+        if (!query) {
+            return allRows;
+        }
+        return allRows.filter(row => row.textContent.toLowerCase().includes(query));
     }
+
+    function updateActivityPagination() {
+        const searchInput = document.getElementById('activitySearchInput');
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const clearBtn = document.getElementById('clearActivitySearchBtn');
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', query === '');
+        }
+
+        const allRows = Array.from(document.querySelectorAll('#activityTableBody tr.activity-row'));
+        const matchingRows = getVisibleActivityRows();
+        const totalMatching = matchingRows.length;
+        const totalPages = Math.max(1, Math.ceil(totalMatching / activityItemsPerPage));
+
+        if (currentActivityPage > totalPages) {
+            currentActivityPage = totalPages;
+        }
+        if (currentActivityPage < 1) {
+            currentActivityPage = 1;
+        }
+
+        // Hide all rows initially
+        allRows.forEach(row => row.style.display = 'none');
+
+        const noMatchingRow = document.getElementById('noMatchingActivityRow');
+        if (totalMatching === 0 && allRows.length > 0) {
+            if (noMatchingRow) noMatchingRow.classList.remove('hidden');
+        } else {
+            if (noMatchingRow) noMatchingRow.classList.add('hidden');
+        }
+
+        // Calculate page slice
+        const startIndex = (currentActivityPage - 1) * activityItemsPerPage;
+        const endIndex = Math.min(startIndex + activityItemsPerPage, totalMatching);
+
+        // Show matching rows for current page
+        matchingRows.slice(startIndex, endIndex).forEach(row => {
+            row.style.display = '';
+        });
+
+        // Update text info
+        const startEntryEl = document.getElementById('actStartEntry');
+        const endEntryEl = document.getElementById('actEndEntry');
+        const totalEntriesEl = document.getElementById('actTotalEntries');
+
+        if (startEntryEl) startEntryEl.textContent = totalMatching > 0 ? (startIndex + 1) : 0;
+        if (endEntryEl) endEntryEl.textContent = endIndex;
+        if (totalEntriesEl) totalEntriesEl.textContent = totalMatching;
+
+        // Render page buttons
+        const controlsContainer = document.getElementById('activityPaginationControls');
+        if (!controlsContainer) return;
+
+        let html = '';
+
+        // Prev Button
+        if (currentActivityPage > 1) {
+            html += `<button type="button" onclick="changeActivityPage(${currentActivityPage - 1})" class="border border-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
+            </button>`;
+        } else {
+            html += `<button type="button" disabled class="border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 bg-slate-50 cursor-not-allowed flex items-center gap-1 opacity-70">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
+            </button>`;
+        }
+
+        // Numeric page buttons
+        const maxVisibleBtns = 5;
+        let startPage = Math.max(1, currentActivityPage - 2);
+        let endPage = Math.min(totalPages, startPage + maxVisibleBtns - 1);
+        if (endPage - startPage < maxVisibleBtns - 1) {
+            startPage = Math.max(1, endPage - maxVisibleBtns + 1);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === currentActivityPage) {
+                html += `<span class="bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-sm">${p}</span>`;
+            } else {
+                html += `<button type="button" onclick="changeActivityPage(${p})" class="border border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition">${p}</button>`;
+            }
+        }
+
+        // Next Button
+        if (currentActivityPage < totalPages) {
+            html += `<button type="button" onclick="changeActivityPage(${currentActivityPage + 1})" class="border border-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1">
+                Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            </button>`;
+        } else {
+            html += `<button type="button" disabled class="border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 bg-slate-50 cursor-not-allowed flex items-center gap-1 opacity-70">
+                Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            </button>`;
+        }
+
+        controlsContainer.innerHTML = html;
+    }
+
+    function changeActivityPage(page) {
+        currentActivityPage = page;
+        updateActivityPagination();
+    }
+
+    function liveFilterActivity(query) {
+        currentActivityPage = 1;
+        updateActivityPagination();
+    }
+
+    function clearActivitySearch() {
+        const searchInput = document.getElementById('activitySearchInput');
+        if (searchInput) searchInput.value = '';
+        currentActivityPage = 1;
+        updateActivityPagination();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateActivityPagination();
+    });
 
     // ---------- Filter Function ----------
     function updateCharts() {

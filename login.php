@@ -1,9 +1,20 @@
 <?php
-session_start();
-
 require_once "config/config.php";
 
+// If already authenticated and session is valid, redirect to dashboard
+if (isset($_SESSION['user_id']) && isset($_SESSION['username'])) {
+    header("Location: dashboard.php");
+    exit();
+}
+
 $error = null;
+$notice = null;
+
+if (isset($_GET['expired'])) {
+    $notice = "Your login session expired after 12 hours. Please sign in again.";
+} elseif (isset($_GET['logged_out'])) {
+    $notice = "You have been securely signed out.";
+}
 
 // MySQL Database Authentication Handler
 if (isset($_POST['login'])) {
@@ -17,7 +28,7 @@ if (isset($_POST['login'])) {
         $conn = getDBConnection();
 
         // Authenticate user against MySQL database (`users` table schema in database/schema.sql)
-        $stmt = $conn->prepare("SELECT id, username, password, full_name, email, role, department, status FROM users WHERE username = ? OR email = ?");
+        $stmt = $conn->prepare("SELECT id, username, password, full_name, email, role, department, status, two_factor_enabled, two_factor_type FROM users WHERE username = ? OR email = ?");
         $stmt->bind_param("ss", $username, $username);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -43,25 +54,64 @@ if (isset($_POST['login'])) {
                 }
 
                 if ($passwordValid) {
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['full_name'] = $user['full_name'];
-                    $_SESSION['role'] = strtolower($user['role']);
-                    $_SESSION['email'] = $user['email'];
-                    $_SESSION['department'] = $user['department'];
+                    $twoFactorRequired = isOTPEnabled() && (bool)($user['two_factor_enabled'] ?? 1);
 
-                    // Log activity
-                    $actionText = "User logged in";
-                    $moduleText = "Authentication";
-                    $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
-                    if ($logStmt) {
-                        $logStmt->bind_param("sss", $user['username'], $actionText, $moduleText);
-                        @$logStmt->execute();
-                        @$logStmt->close();
+                    // Check if current device has an active 12-hour trusted device token
+                    $isTrusted = isDeviceTrusted($user['id']);
+
+                    if ($twoFactorRequired && !$isTrusted) {
+                        // Setup pending 2FA authentication state
+                        $_SESSION['pending_2fa_user_id']   = (int)$user['id'];
+                        $_SESSION['pending_2fa_username']  = $user['username'];
+                        $_SESSION['pending_2fa_full_name'] = $user['full_name'];
+                        $_SESSION['pending_2fa_role']      = strtolower($user['role']);
+                        $_SESSION['pending_2fa_email']     = $user['email'];
+                        $_SESSION['pending_2fa_department']= $user['department'];
+                        $_SESSION['pending_2fa_started']   = time();
+
+                        // Generate and dispatch 6-digit OTP via PHPMailer
+                        generateAndSendOTP((int)$user['id'], $user['email'], $user['full_name']);
+
+                        header("Location: verify_2fa.php");
+                        exit();
+                    } else {
+                        // Log user directly in (Trusted Device or 2FA disabled)
+                        $_SESSION['user_id']     = $user['id'];
+                        $_SESSION['username']    = $user['username'];
+                        $_SESSION['full_name']   = $user['full_name'];
+                        $_SESSION['role']        = strtolower($user['role']);
+                        $_SESSION['email']       = $user['email'];
+                        $_SESSION['department']  = $user['department'];
+                        $_SESSION['login_time']  = time();
+
+                        // Success Toast Notification
+                        $_SESSION['toast'] = [
+                            'type' => 'success',
+                            'title' => 'Login Successful',
+                            'message' => 'Welcome back, ' . htmlspecialchars($user['full_name'] ?: $user['username']) . '!'
+                        ];
+
+                        // Log activity
+                        $actionText = $isTrusted ? "User logged in (12h Trusted Device)" : "User logged in";
+                        $moduleText = "Authentication";
+                        $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
+                        if ($logStmt) {
+                            $logStmt->bind_param("sss", $user['username'], $actionText, $moduleText);
+                            @$logStmt->execute();
+                            @$logStmt->close();
+                        }
+
+                        // Update last login
+                        $llStmt = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        if ($llStmt) {
+                            $llStmt->bind_param("i", $user['id']);
+                            @$llStmt->execute();
+                            @$llStmt->close();
+                        }
+
+                        header("Location: dashboard.php");
+                        exit();
                     }
-
-                    header("Location: dashboard.php");
-                    exit();
                 } else {
                     $error = "Invalid Username or Password.";
                 }
@@ -205,24 +255,23 @@ font-family:'Inter',sans-serif;
 
             </div>
 
-            <?php
-
-            if(isset($error))
-            {
-
-            ?>
-
-            <div class="mt-6 bg-red-100 border border-red-300 text-red-700 rounded-lg p-3">
-
-                <?php echo $error; ?>
-
+            <?php if (isset($error)): ?>
+            <div class="mt-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3.5 flex items-center gap-3 text-sm">
+                <i class="fa-solid fa-circle-exclamation text-red-500 text-base shrink-0"></i>
+                <div><?php echo htmlspecialchars($error); ?></div>
             </div>
+            <?php renderToast('error', 'Sign In Failed', $error); ?>
+            <?php endif; ?>
 
-            <?php
+            <?php if (isset($notice)): ?>
+            <div class="mt-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3.5 flex items-center gap-3 text-sm">
+                <i class="fa-solid fa-shield-halved text-amber-600 text-base shrink-0"></i>
+                <div><?php echo htmlspecialchars($notice); ?></div>
+            </div>
+            <?php renderToast('info', 'Notice', $notice); ?>
+            <?php endif; ?>
 
-            }
-
-            ?>
+            <?php renderToast(); ?>
 
             <form method="POST" class="mt-8 space-y-5">
 

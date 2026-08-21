@@ -463,7 +463,14 @@ function createImpactAssessment($dataset_id, $conn, $username) {
 // ============================================
 // HANDLE: Dataset Approval with Gemini
 // ============================================
+// HANDLE: Dataset Approval with Gemini
+// ============================================
 if (isset($_GET['approve_id'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to approve datasets.'];
+        header("Location: data-collection.php");
+        exit();
+    }
     $approve_id = $_GET['approve_id'];
     
     $update_sql = "UPDATE datasets SET 
@@ -513,6 +520,11 @@ if (isset($_GET['approve_id'])) {
 // HANDLE: Dataset Rejection
 // ============================================
 if (isset($_GET['reject_id'])) {
+    if (!hasRole([ROLE_ADMIN, ROLE_RESEARCHER])) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to reject datasets.'];
+        header("Location: data-collection.php");
+        exit();
+    }
     $reject_id = $_GET['reject_id'];
     
     $update_sql = "UPDATE datasets SET 
@@ -537,6 +549,11 @@ if (isset($_GET['reject_id'])) {
 // ============================================
 if (isset($_GET['doc_id']) && !empty($_GET['doc_id'])
     && isset($_GET['title']) && !empty($_GET['title'])) {
+    if (!canUploadData()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to submit datasets.'];
+        header("Location: data-collection.php");
+        exit();
+    }
     $submitted_doc_id = trim($_GET['doc_id']);
     $submitted_title = trim($_GET['title']);
     $submitted_desc = isset($_GET['description']) ? trim($_GET['description']) : '';
@@ -576,6 +593,11 @@ if (isset($_GET['doc_id']) && !empty($_GET['doc_id'])
 // HANDLE: Direct Dataset Upload
 // ============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_dataset'])) {
+    if (!canUploadData()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'You do not have permission to upload datasets.'];
+        header("Location: data-collection.php");
+        exit();
+    }
     $dataset_name = $_POST['dataset_name'];
     $source_office = $_POST['source_office'];
     $category = $_POST['category'];
@@ -633,6 +655,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_dataset'])) {
 // HANDLE: Delete Dataset
 // ============================================
 if (isset($_GET['delete_id'])) {
+    if (!canDeletePolicy()) {
+        $_SESSION['toast'] = ['type' => 'error', 'title' => 'Access Denied', 'message' => 'Only administrators can delete datasets.'];
+        header("Location: data-collection.php");
+        exit();
+    }
     $delete_id = $_GET['delete_id'];
     
     $file_sql = "SELECT file_path FROM datasets WHERE dataset_id = '$delete_id'";
@@ -1298,10 +1325,12 @@ $datasets = $conn->query($sql);
                         </span>
                     </div>
                 </div>
+                <?php if (canUploadData()): ?>
                 <button onclick="openUploadModal()" class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-3 rounded-lg shadow btn-scale">
                     <i class="fa-solid fa-plus mr-2"></i>
                     Add New Dataset
                 </button>
+                <?php endif; ?>
             </div>
 
             <!-- UPLOAD MODAL -->
@@ -1580,6 +1609,7 @@ $datasets = $conn->query($sql);
                                     <td class="p-4"><?php echo date('M j, Y h:i A', strtotime($row['upload_date'])); ?></td>
                                     <td class="p-4 no-print">
                                         <div class="flex justify-center gap-1.5" onclick="event.stopPropagation();">
+                                            <?php if (hasRole([ROLE_ADMIN, ROLE_RESEARCHER])): ?>
                                             <button type="button" 
                                                     title="Approve Dataset & Generate Technical Framework"
                                                     onclick="openConfirmModal('Approve Dataset', 'Approve this dataset? Gemini AI will generate 3 technical supporting documents and auto-create an Impact Assessment record.', '?approve_id=<?php echo $row['dataset_id']; ?>', 'bg-green-600 hover:bg-green-700', 'bg-gradient-to-r from-green-900 to-green-700')"
@@ -1592,6 +1622,7 @@ $datasets = $conn->query($sql);
                                                     class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm">
                                                 <i class="fa-solid fa-xmark"></i>
                                             </button>
+                                            <?php endif; ?>
                                             <button type="button" 
                                                     title="View Supporting Documents"
                                                     onclick="viewDatasetDocs('<?php echo $row['dataset_id']; ?>')" 
@@ -1740,17 +1771,19 @@ $datasets = $conn->query($sql);
                                                         <i class="fa-solid fa-folder-open"></i>
                                                     </a>
                                                 <?php endif; ?>
-                                                <?php if ($row['approval_status'] != 'Approved'): ?>
+                                                <?php if (canDeletePolicy() && $row['approval_status'] != 'Approved'): ?>
                                                     <button onclick="deleteDataset('<?php echo $row['dataset_id']; ?>')" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm" title="Delete Dataset">
                                                         <i class="fa-solid fa-trash"></i>
                                                     </button>
                                                 <?php endif; ?>
+                                                <?php if (canUploadData()): ?>
                                                 <button type="button"
                                                         title="Submit Dataset"
                                                         onclick="openConfirmModal('Submit Dataset', 'Are you sure you want to submit this dataset for review and approval?', '?submit_id=<?php echo $row['dataset_id']; ?>', 'bg-green-600 hover:bg-green-700', 'bg-gradient-to-r from-green-900 to-green-700')"
                                                         class="bg-green-600 hover:bg-green-700 text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs btn-scale shadow-sm">
                                                     <i class="fa-solid fa-paper-plane"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
