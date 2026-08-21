@@ -66,9 +66,6 @@ if (isset($_POST['resend_otp'])) {
         } else {
             $error = "Failed to send code: " . htmlspecialchars($genResult['message'] ?? 'Unable to dispatch email.');
         }
-        if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
-            $_SESSION['pending_2fa_dev_otp'] = $genResult['otp_code'] ?? '';
-        }
     }
 }
 
@@ -257,13 +254,6 @@ $maskedEmail = maskEmailPreview($email);
             </div>
 
         </div>
-
-        <?php if ((Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') && !empty($_SESSION['pending_2fa_dev_otp'])): ?>
-        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs text-center flex items-center justify-center gap-2">
-            <i class="fa-solid fa-code"></i>
-            <span><strong>Development Mode OTP:</strong> <code class="bg-amber-100 px-2 py-0.5 rounded font-mono font-bold"><?php echo htmlspecialchars($_SESSION['pending_2fa_dev_otp']); ?></code></span>
-        </div>
-        <?php endif; ?>
 
         <div class="mt-6 text-center text-slate-400 text-xs">
             &copy; <?php echo date('Y'); ?> Legislative Research System &bull; City of San Jose Del Monte

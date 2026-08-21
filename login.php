@@ -75,9 +75,6 @@ if (isset($_POST['login'])) {
                         if (!$otpResult['mail_sent']) {
                             $_SESSION['pending_2fa_mail_warning'] = $otpResult['message'] ?? 'Could not send verification email to registered address.';
                         }
-                        if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
-                            $_SESSION['pending_2fa_dev_otp'] = $otpResult['otp_code'] ?? '';
-                        }
 
                         header("Location: verify_2fa.php");
                         exit();
