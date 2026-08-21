@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 17, 2026 at 02:54 PM
+-- Generation Time: Aug 21, 2026 at 06:37 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -81,7 +81,33 @@ INSERT INTO `activity_logs` (`id`, `user`, `action`, `document_id`, `module`, `t
 (37, 'admin2', 'Viewed supporting document', 'SD-20260817192857-2853', 'Data Collection', '2026-08-17 19:29:07', 1),
 (38, 'admin2', 'KPI Evaluation completed. Impact: 50% (Low) - Archived', 'IA-20260817-1856', 'Impact Assessment', '2026-08-17 19:40:32', 1),
 (39, 'admin2', 'KPI Evaluation completed. Impact: 98% (High) - Proceed to Benchmarking', 'IA-20260817-8540', 'Impact Assessment', '2026-08-17 19:43:30', 1),
-(40, 'admin2', 'Submitted to Benchmarking with BENCH-20260817-8060', 'IA-20260817-8540', 'Impact Assessment', '2026-08-17 19:43:43', 1);
+(40, 'admin2', 'Submitted to Benchmarking with BENCH-20260817-8060', 'IA-20260817-8540', 'Impact Assessment', '2026-08-17 19:43:43', 1),
+(41, 'admin2', 'User logged in', NULL, 'Authentication', '2026-08-17 22:00:05', 0),
+(42, 'admin2', 'User logged in', NULL, 'Authentication', '2026-08-17 22:07:07', 0),
+(43, 'admin2', 'Toggled deadline status ID: 1', NULL, 'Dashboard', '2026-08-17 22:43:33', 0),
+(44, 'admin', 'User logged in', NULL, 'Authentication', '2026-08-18 14:58:03', 0),
+(45, 'admin', '2FA verified (12h Device Trust Granted)', NULL, 'Authentication', '2026-08-19 20:56:01', 0),
+(46, 'admin', 'User logged out', NULL, 'Authentication', '2026-08-19 20:56:09', 0),
+(47, 'admin', 'User logged in (12h Trusted Device)', NULL, 'Authentication', '2026-08-19 20:56:14', 0),
+(48, 'admin', 'User logged out', NULL, 'Authentication', '2026-08-19 20:56:17', 0),
+(49, 'admin', 'User logged in (12h Trusted Device)', NULL, 'Authentication', '2026-08-19 20:58:25', 0),
+(50, 'admin', 'User logged in', NULL, 'Authentication', '2026-08-21 23:57:48', 0),
+(51, 'admin', 'User logged out', NULL, 'Authentication', '2026-08-22 00:00:46', 0),
+(52, 'admin', 'User logged in', NULL, 'Authentication', '2026-08-22 00:00:52', 0),
+(53, 'admin', 'User logged out', NULL, 'Authentication', '2026-08-22 00:11:05', 0),
+(54, 'admin2', 'User logged in', NULL, 'Authentication', '2026-08-22 00:11:40', 0),
+(55, 'admin2', 'User logged out', NULL, 'Authentication', '2026-08-22 00:11:45', 0),
+(56, 'researcher', 'User logged in', NULL, 'Authentication', '2026-08-22 00:11:58', 0),
+(57, 'researcher', 'User logged out', NULL, 'Authentication', '2026-08-22 00:12:05', 0),
+(58, 'encoder', 'User logged in', NULL, 'Authentication', '2026-08-22 00:12:31', 0),
+(59, 'encoder', 'User logged out', NULL, 'Authentication', '2026-08-22 00:12:41', 0),
+(60, 'viewer', 'User logged in', NULL, 'Authentication', '2026-08-22 00:12:51', 0),
+(61, 'viewer', 'User logged out', NULL, 'Authentication', '2026-08-22 00:27:15', 0),
+(62, 'admin2', 'User logged in', NULL, 'Authentication', '2026-08-22 00:27:20', 0),
+(63, 'admin2', 'User logged out', NULL, 'Authentication', '2026-08-22 00:27:24', 0),
+(64, 'researcher', 'User logged in', NULL, 'Authentication', '2026-08-22 00:27:33', 0),
+(65, 'researcher', 'User logged out', NULL, 'Authentication', '2026-08-22 00:27:45', 0),
+(66, 'encoder', 'User logged in', NULL, 'Authentication', '2026-08-22 00:28:09', 0);
 
 -- --------------------------------------------------------
 
@@ -442,6 +468,13 @@ CREATE TABLE `reports` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `reports`
+--
+
+INSERT INTO `reports` (`id`, `report_id`, `report_title`, `report_type`, `policy_category`, `output_format`, `report_description`, `date_from`, `date_to`, `report_status`, `ai_content`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'BENCH-20260817-8060', 'Local Public Transport Route Plan & Traffic Strategy', 'Policy Impact Assessment', 'Policy Research', 'PDF', NULL, NULL, NULL, 'Published', NULL, 'admin', '2026-08-18 20:02:54', '2026-08-18 20:02:54');
+
 -- --------------------------------------------------------
 
 --
@@ -508,6 +541,33 @@ INSERT INTO `supporting_documents` (`id`, `document_id`, `dataset_id`, `title`, 
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `upcoming_deadlines`
+--
+
+CREATE TABLE `upcoming_deadlines` (
+  `id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `category` varchar(100) DEFAULT 'General',
+  `due_date` date NOT NULL,
+  `priority` enum('high','medium','low') DEFAULT 'medium',
+  `status` enum('pending','completed') DEFAULT 'pending',
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `upcoming_deadlines`
+--
+
+INSERT INTO `upcoming_deadlines` (`id`, `title`, `category`, `due_date`, `priority`, `status`, `created_by`, `created_at`) VALUES
+(1, 'Submit Impact Assessment for Local Health Code', 'Impact Assessment', '2026-08-20', 'high', 'completed', 'admin', '2026-08-17 22:41:08'),
+(2, 'Comparative Benchmarking Review with Antipolo City', 'Benchmarking Analysis', '2026-08-23', 'medium', 'pending', 'admin', '2026-08-17 22:41:08'),
+(3, 'Legislative Quarterly Policy Report Draft', 'Report Generation', '2026-08-31', 'medium', 'pending', 'admin', '2026-08-17 22:41:08'),
+(4, 'Data Ingestion: Q3 Demographic Survey', 'Data Collection', '2026-09-07', 'low', 'pending', 'admin', '2026-08-17 22:41:08');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -517,9 +577,11 @@ CREATE TABLE `users` (
   `password` varchar(255) NOT NULL,
   `full_name` varchar(100) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
-  `role` enum('admin','researcher','viewer') DEFAULT 'viewer',
+  `role` enum('admin','researcher','data_encoder','viewer') DEFAULT 'viewer',
   `department` varchar(100) DEFAULT NULL,
   `status` enum('active','inactive','suspended') DEFAULT 'active',
+  `two_factor_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_type` enum('email_otp','totp') NOT NULL DEFAULT 'email_otp',
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `created_by` varchar(50) DEFAULT NULL,
@@ -530,9 +592,42 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `department`, `status`, `created_at`, `updated_at`, `created_by`, `last_login`) VALUES
-(1, 'admin', '$2y$12$o17wXkZfnI3zb3ICxCCsWuNxQLN1iBQnkPZ21LSNagoTyZzsIRMRC', 'System Administrator', 'admin@sjdm.gov.ph', 'admin', 'Legislative Research Division', 'active', '2026-08-17 07:42:07', '2026-08-17 07:56:24', 'system', NULL),
-(2, 'admin2', '$2y$12$o17wXkZfnI3zb3ICxCCsWuNxQLN1iBQnkPZ21LSNagoTyZzsIRMRC', 'Legislative Administrator', 'admin2@sjdm.gov.ph', 'admin', 'Sanggunian Panlungsod', 'active', '2026-08-17 07:53:21', '2026-08-17 07:56:24', 'system', NULL);
+INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `department`, `status`, `two_factor_enabled`, `two_factor_type`, `created_at`, `updated_at`, `created_by`, `last_login`) VALUES
+(2, 'admin2', '$2y$12$o17wXkZfnI3zb3ICxCCsWuNxQLN1iBQnkPZ21LSNagoTyZzsIRMRC', 'Legislative Administrator', 'asierra389@gmail.com\r\n', 'admin', 'Sanggunian Panlungsod', 'active', 1, 'email_otp', '2026-08-17 07:53:21', '2026-08-22 00:27:20', 'system', '2026-08-22 00:27:20'),
+(5, 'researcher', '$2y$12$3eC2CuZnSieTgqup8RYZHOkGCnKcbHRRn.klN2akAktfo553Vppqy', 'Senior Legislative Researcher', 'researcher@sjdm.gov.ph', 'researcher', 'Policy Research & Analysis Division', 'active', 1, 'email_otp', '2026-08-22 00:08:58', '2026-08-22 00:27:33', 'system', '2026-08-22 00:27:33'),
+(6, 'encoder', '$2y$12$3eC2CuZnSieTgqup8RYZHOkGCnKcbHRRn.klN2akAktfo553Vppqy', 'Data Specialist & Records Officer', 'encoder@sjdm.gov.ph', 'data_encoder', 'Records & Archives Management', 'active', 1, 'email_otp', '2026-08-22 00:08:58', '2026-08-22 00:28:09', 'system', '2026-08-22 00:28:09'),
+(7, 'viewer', '$2y$12$3eC2CuZnSieTgqup8RYZHOkGCnKcbHRRn.klN2akAktfo553Vppqy', 'Legislative Reviewer / Council Liaison', 'viewer@sjdm.gov.ph', 'viewer', 'Sangguniang Panlungsod (City Council)', 'active', 1, 'email_otp', '2026-08-22 00:08:58', '2026-08-22 00:12:51', 'system', '2026-08-22 00:12:51');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_otps`
+--
+
+CREATE TABLE `user_otps` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `otp_code` varchar(255) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `is_used` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_trusted_devices`
+--
+
+CREATE TABLE `user_trusted_devices` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `device_token` varchar(64) NOT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `expires_at` datetime NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -682,11 +777,33 @@ ALTER TABLE `supporting_documents`
   ADD KEY `dataset_id` (`dataset_id`);
 
 --
+-- Indexes for table `upcoming_deadlines`
+--
+ALTER TABLE `upcoming_deadlines`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `username` (`username`);
+
+--
+-- Indexes for table `user_otps`
+--
+ALTER TABLE `user_otps`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user_otp` (`user_id`,`expires_at`,`is_used`);
+
+--
+-- Indexes for table `user_trusted_devices`
+--
+ALTER TABLE `user_trusted_devices`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `device_token` (`device_token`),
+  ADD KEY `idx_device_token` (`device_token`,`user_id`,`expires_at`),
+  ADD KEY `fk_trusted_devices_user` (`user_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -696,7 +813,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
 
 --
 -- AUTO_INCREMENT for table `ai_cache`
@@ -750,7 +867,7 @@ ALTER TABLE `policy_keywords`
 -- AUTO_INCREMENT for table `reports`
 --
 ALTER TABLE `reports`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `research_projects`
@@ -765,10 +882,28 @@ ALTER TABLE `supporting_documents`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
+-- AUTO_INCREMENT for table `upcoming_deadlines`
+--
+ALTER TABLE `upcoming_deadlines`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `user_otps`
+--
+ALTER TABLE `user_otps`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `user_trusted_devices`
+--
+ALTER TABLE `user_trusted_devices`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables
@@ -797,6 +932,18 @@ ALTER TABLE `research_projects`
 --
 ALTER TABLE `supporting_documents`
   ADD CONSTRAINT `supporting_documents_ibfk_1` FOREIGN KEY (`dataset_id`) REFERENCES `datasets` (`dataset_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `user_otps`
+--
+ALTER TABLE `user_otps`
+  ADD CONSTRAINT `fk_user_otps_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `user_trusted_devices`
+--
+ALTER TABLE `user_trusted_devices`
+  ADD CONSTRAINT `fk_trusted_devices_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
