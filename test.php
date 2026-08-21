@@ -1,1 +1,2 @@
-testing
+<?php
+// Test script placeholder

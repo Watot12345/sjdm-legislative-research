@@ -61,16 +61,23 @@ if (isset($_POST['login'])) {
 
                     if ($twoFactorRequired && !$isTrusted) {
                         // Setup pending 2FA authentication state
+                        $cleanEmail = trim($user['email'] ?? '');
                         $_SESSION['pending_2fa_user_id']   = (int)$user['id'];
                         $_SESSION['pending_2fa_username']  = $user['username'];
                         $_SESSION['pending_2fa_full_name'] = $user['full_name'];
                         $_SESSION['pending_2fa_role']      = strtolower($user['role']);
-                        $_SESSION['pending_2fa_email']     = $user['email'];
+                        $_SESSION['pending_2fa_email']     = $cleanEmail;
                         $_SESSION['pending_2fa_department']= $user['department'];
                         $_SESSION['pending_2fa_started']   = time();
 
                         // Generate and dispatch 6-digit OTP via PHPMailer
-                        generateAndSendOTP((int)$user['id'], $user['email'], $user['full_name']);
+                        $otpResult = generateAndSendOTP((int)$user['id'], $cleanEmail, $user['full_name']);
+                        if (!$otpResult['mail_sent']) {
+                            $_SESSION['pending_2fa_mail_warning'] = $otpResult['message'] ?? 'Could not send verification email to registered address.';
+                        }
+                        if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
+                            $_SESSION['pending_2fa_dev_otp'] = $otpResult['otp_code'] ?? '';
+                        }
 
                         header("Location: verify_2fa.php");
                         exit();

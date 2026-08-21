@@ -102,12 +102,18 @@ function enforceSessionTimeout($maxSeconds = 43200) {
  * Dispatches the OTP via PHPMailer to their registered email.
  *
  * @param int $userId User ID
+/**
+ * Generate and store a secure 6-digit OTP for a given user.
+ * Dispatches the OTP via PHPMailer to their registered email.
+ *
+ * @param int $userId User ID
  * @param string $email Recipient Email
  * @param string $fullName User Full Name
- * @return array ['success' => bool, 'message' => string, 'otp_code' => string]
+ * @return array ['success' => bool, 'mail_sent' => bool, 'message' => string, 'otp_code' => string]
  */
 function generateAndSendOTP($userId, $email, $fullName = '') {
     $conn = getDBConnection();
+    $email = trim($email);
     
     // Invalidate previous active OTPs for this user
     $invStmt = $conn->prepare("UPDATE user_otps SET is_used = 1 WHERE user_id = ? AND is_used = 0");
@@ -127,23 +133,28 @@ function generateAndSendOTP($userId, $email, $fullName = '') {
     // Save to user_otps table
     $stmt = $conn->prepare("INSERT INTO user_otps (user_id, otp_code, expires_at, is_used, created_at) VALUES (?, ?, ?, 0, NOW())");
     if (!$stmt) {
-        return ['success' => false, 'message' => 'Database error generating OTP.', 'otp_code' => ''];
+        return ['success' => false, 'mail_sent' => false, 'message' => 'Database error generating OTP.', 'otp_code' => ''];
     }
     $stmt->bind_param("iss", $userId, $otpHash, $expiresAt);
     $saved = $stmt->execute();
     $stmt->close();
 
     if (!$saved) {
-        return ['success' => false, 'message' => 'Failed to save OTP record.', 'otp_code' => ''];
+        return ['success' => false, 'mail_sent' => false, 'message' => 'Failed to save OTP record.', 'otp_code' => ''];
     }
 
     // Send via PHPMailer
     $mailResult = sendOTPEmailPHPMailer($email, $fullName, $otpCode);
 
+    // Development fallback log
+    if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
+        error_log("[2FA OTP DEBUG] User ID: {$userId} ({$email}) | OTP: {$otpCode} | Sent: " . ($mailResult['sent'] ? 'YES' : 'NO - ' . $mailResult['message']));
+    }
+
     return [
         'success' => true,
+        'mail_sent' => (bool)$mailResult['sent'],
         'message' => $mailResult['message'],
-        'mail_sent' => $mailResult['sent'],
         'otp_code' => $otpCode
     ];
 }
@@ -152,21 +163,41 @@ function generateAndSendOTP($userId, $email, $fullName = '') {
  * Send OTP Verification Code using PHPMailer with an HTML email template.
  */
 function sendOTPEmailPHPMailer($recipientEmail, $recipientName, $otpCode) {
+    $recipientEmail = trim($recipientEmail);
+
+    if (empty($recipientEmail) || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'sent' => false,
+            'message' => "Recipient email address '{$recipientEmail}' is invalid or empty."
+        ];
+    }
+
+    // Ensure autoloader is loaded
+    $autoloadPath = __DIR__ . '/../vendor/autoload.php';
+    if (file_exists($autoloadPath)) {
+        require_once $autoloadPath;
+    }
+
     if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
         return [
             'sent' => false,
-            'message' => 'PHPMailer library not found.'
+            'message' => 'PHPMailer library not found. Please run composer install.'
         ];
     }
 
     $smtpEnabled = filter_var(Environment::get('SMTP_ENABLED', false), FILTER_VALIDATE_BOOLEAN);
     $smtpHost    = Environment::get('SMTP_HOST', 'smtp.gmail.com');
     $smtpPort    = (int)Environment::get('SMTP_PORT', 587);
-    $smtpSecure  = Environment::get('SMTP_SECURE', 'tls');
-    $smtpUser    = Environment::get('SMTP_USERNAME', '');
-    $smtpPass    = Environment::get('SMTP_PASSWORD', '');
-    $fromEmail   = Environment::get('SMTP_FROM_EMAIL', 'noreply@sjdm.gov.ph');
+    $smtpSecure  = strtolower(trim(Environment::get('SMTP_SECURE', 'tls')));
+    $smtpUser    = trim(Environment::get('SMTP_USERNAME', ''));
+    $smtpPass    = trim(Environment::get('SMTP_PASSWORD', ''));
+    $fromEmail   = trim(Environment::get('SMTP_FROM_EMAIL', ''));
     $fromName    = Environment::get('SMTP_FROM_NAME', 'Legislative Research System (SJDM)');
+
+    // For Gmail SMTP, the From address must align with authenticated Gmail account to prevent SPF/DMARC spam drops
+    if (empty($fromEmail) || (strpos($smtpHost, 'gmail.com') !== false && !empty($smtpUser))) {
+        $fromEmail = $smtpUser ?: 'noreply@sjdm.gov.ph';
+    }
 
     $mail = new PHPMailer(true);
 
@@ -177,18 +208,28 @@ function sendOTPEmailPHPMailer($recipientEmail, $recipientName, $otpCode) {
             $mail->SMTPAuth   = true;
             $mail->Username   = $smtpUser;
             $mail->Password   = $smtpPass;
-            $mail->SMTPSecure = ($smtpSecure === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->SMTPSecure = ($smtpSecure === 'ssl' || $smtpPort === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = $smtpPort;
-            $mail->Timeout    = 10;
+            $mail->Timeout    = 12;
+
+            // XAMPP on Windows OpenSSL CA fallback to prevent local certificate verify failures
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                ]
+            ];
         } else {
             // Fallback to PHP mail() if SMTP credentials not fully configured
             $mail->isMail();
         }
 
         $mail->setFrom($fromEmail, $fromName);
+        $mail->addReplyTo($fromEmail, $fromName);
         $mail->addAddress($recipientEmail, $recipientName ?: 'Legislative System User');
         $mail->isHTML(true);
-        $mail->Subject = 'Your 2FA Login Verification Code - ' . $otpCode;
+        $mail->Subject = 'Your 2FA Login Verification Code: ' . $otpCode;
 
         $safeName = htmlspecialchars($recipientName ?: 'User', ENT_QUOTES, 'UTF-8');
         $currentYear = date('Y');
@@ -259,10 +300,10 @@ HTML;
         $mail->Body    = $htmlBody;
         $mail->AltBody = "Your Legislative Research System 2FA verification code is: {$otpCode}. This code expires in 5 minutes.";
 
-        @$mail->send();
+        $mail->send();
         return ['sent' => true, 'message' => 'Verification code sent to your email.'];
     } catch (PHPMailerException $e) {
-        return ['sent' => false, 'message' => 'Email dispatch note: ' . $mail->ErrorInfo];
+        return ['sent' => false, 'message' => 'Email dispatch note: ' . ($mail->ErrorInfo ?: $e->getMessage())];
     } catch (\Throwable $t) {
         return ['sent' => false, 'message' => 'Mail error: ' . $t->getMessage()];
     }

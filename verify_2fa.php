@@ -45,20 +45,29 @@ if (!isOTPEnabled()) {
 $error = null;
 $success = null;
 
+// Display mail dispatch warning if initial send encountered an issue
+if (isset($_SESSION['pending_2fa_mail_warning'])) {
+    $error = "Notice: " . $_SESSION['pending_2fa_mail_warning'];
+    unset($_SESSION['pending_2fa_mail_warning']);
+}
+
 // Handle Resend OTP Request
 if (isset($_POST['resend_otp'])) {
     $now = time();
     $lastResend = $_SESSION['last_otp_resend_time'] ?? 0;
     
-    if ($now - $lastResend < 30) {
-        $error = "Please wait a moment before requesting another code.";
+    if ($now - $lastResend < 15) {
+        $error = "Please wait a few seconds before requesting another code.";
     } else {
         $_SESSION['last_otp_resend_time'] = $now;
         $genResult = generateAndSendOTP($userId, $email, $fullName);
-        if ($genResult['success']) {
-            $success = "A fresh 6-digit verification code has been sent to your email.";
+        if ($genResult['success'] && ($genResult['mail_sent'] ?? true)) {
+            $success = "A fresh 6-digit verification code has been sent to " . htmlspecialchars(maskEmailPreview($email)) . ".";
         } else {
-            $error = "Failed to resend code: " . $genResult['message'];
+            $error = "Failed to send code: " . htmlspecialchars($genResult['message'] ?? 'Unable to dispatch email.');
+        }
+        if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
+            $_SESSION['pending_2fa_dev_otp'] = $genResult['otp_code'] ?? '';
         }
     }
 }
@@ -248,6 +257,13 @@ $maskedEmail = maskEmailPreview($email);
             </div>
 
         </div>
+
+        <?php if ((Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') && !empty($_SESSION['pending_2fa_dev_otp'])): ?>
+        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs text-center flex items-center justify-center gap-2">
+            <i class="fa-solid fa-code"></i>
+            <span><strong>Development Mode OTP:</strong> <code class="bg-amber-100 px-2 py-0.5 rounded font-mono font-bold"><?php echo htmlspecialchars($_SESSION['pending_2fa_dev_otp']); ?></code></span>
+        </div>
+        <?php endif; ?>
 
         <div class="mt-6 text-center text-slate-400 text-xs">
             &copy; <?php echo date('Y'); ?> Legislative Research System &bull; City of San Jose Del Monte
