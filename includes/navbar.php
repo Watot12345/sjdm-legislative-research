@@ -36,13 +36,133 @@ if ($all_notifs_res && $all_notifs_res->num_rows > 0) {
     }
 }
 
-// Determine relative Logout URL
-$logout_url = (strpos($_SERVER['PHP_SELF'], '/modules/') !== false || strpos($_SERVER['PHP_SELF'], '/admin/') !== false) ? '../logout.php' : 'logout.php';
+// Determine relative Logout and Dashboard URLs
+$is_subfolder = (strpos($_SERVER['PHP_SELF'], '/modules/') !== false || strpos($_SERVER['PHP_SELF'], '/admin/') !== false);
+$logout_url = $is_subfolder ? '../logout.php' : 'logout.php';
+$dashboard_url = $is_subfolder ? '../dashboard.php' : 'dashboard.php';
+$current_file = basename($_SERVER['PHP_SELF']);
+
+// Dynamic Route & Breadcrumb Matrix matching Sidebar Navigation
+$route_map = [
+    'dashboard.php' => [
+        'title' => 'Dashboard',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Dashboard', 'url' => '', 'active' => true]
+        ]
+    ],
+    'policy-research.php' => [
+        'title' => 'Policy Research',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Policy Research', 'url' => '', 'active' => true]
+        ]
+    ],
+    'add-policy.php' => [
+        'title' => 'Create Policy Proposal',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Policy Research', 'url' => 'policy-research.php'],
+            ['label' => 'Create Policy', 'url' => '', 'active' => true]
+        ]
+    ],
+    'view_document.php' => [
+        'title' => 'Policy Document Details',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Policy Research', 'url' => 'policy-research.php'],
+            ['label' => 'Document View', 'url' => '', 'active' => true]
+        ]
+    ],
+    'data-collection.php' => [
+        'title' => 'Data Collection',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Data Collection', 'url' => '', 'active' => true]
+        ]
+    ],
+    'view_supporting_doc.php' => [
+        'title' => 'Supporting Framework',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Data Collection', 'url' => 'data-collection.php'],
+            ['label' => 'Supporting Framework', 'url' => '', 'active' => true]
+        ]
+    ],
+    'impact-assessment.php' => [
+        'title' => 'Impact Assessment',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Impact Assessment', 'url' => '', 'active' => true]
+        ]
+    ],
+    'benchmarking-analysis.php' => [
+        'title' => 'Benchmarking & Analysis',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Benchmarking Analysis', 'url' => '', 'active' => true]
+        ]
+    ],
+    'report-generation.php' => [
+        'title' => 'Report Generation',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Report Generation', 'url' => '', 'active' => true]
+        ]
+    ],
+    'data-visualization.php' => [
+        'title' => 'Data Visualization',
+        'crumbs' => [
+            ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+            ['label' => 'Data Visualization', 'url' => '', 'active' => true]
+        ]
+    ],
+    'users.php' => [
+        'title' => 'User Management',
+        'crumbs' => [
+            ['label' => 'Administration', 'url' => '', 'icon' => 'fa-solid fa-shield-halved'],
+            ['label' => 'User Management', 'url' => '', 'active' => true]
+        ]
+    ],
+    'profile.php' => [
+        'title' => 'User Profile',
+        'crumbs' => [
+            ['label' => 'Account', 'url' => '', 'icon' => 'fa-solid fa-circle-user'],
+            ['label' => 'Profile Settings', 'url' => '', 'active' => true]
+        ]
+    ],
+    'settings.php' => [
+        'title' => 'System Settings',
+        'crumbs' => [
+            ['label' => 'Administration', 'url' => '', 'icon' => 'fa-solid fa-gear'],
+            ['label' => 'Settings', 'url' => '', 'active' => true]
+        ]
+    ],
+    'help-center.php' => [
+        'title' => 'Help Center',
+        'crumbs' => [
+            ['label' => 'Support', 'url' => '', 'icon' => 'fa-solid fa-circle-question'],
+            ['label' => 'Help Center', 'url' => '', 'active' => true]
+        ]
+    ]
+];
+
+if (isset($route_map[$current_file])) {
+    $current_route = $route_map[$current_file];
+    $display_heading = $current_route['title'];
+    $breadcrumbs = $current_route['crumbs'];
+} else {
+    $display_heading = $pageTitle ?? "Dashboard";
+    $breadcrumbs = [
+        ['label' => 'Main Menu', 'url' => $dashboard_url, 'icon' => 'fa-solid fa-layer-group'],
+        ['label' => $display_heading, 'url' => '', 'active' => true]
+    ];
+}
 ?>
 
 <header class="bg-white shadow-sm border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between relative z-30">
 
-    <!-- Left: Sidebar Toggle & Page Title -->
+    <!-- Left: Sidebar Toggle & Page Title with Functional Breadcrumbs -->
     <div class="flex items-center gap-4">
         <button type="button" 
                 onclick="toggleSidebarCompact()" 
@@ -52,14 +172,43 @@ $logout_url = (strpos($_SERVER['PHP_SELF'], '/modules/') !== false || strpos($_S
         </button>
         <div>
             <h1 class="text-2xl font-bold text-slate-800 leading-tight">
-                <?php echo htmlspecialchars($pageTitle); ?>
+                <?php echo htmlspecialchars($display_heading); ?>
             </h1>
-            <p class="text-xs text-slate-500 mt-0.5">
-                Dashboard /
-                <span class="font-medium text-blue-700">
-                    <?php echo htmlspecialchars($pageTitle); ?>
-                </span>
-            </p>
+            <nav aria-label="Breadcrumb" class="mt-0.5">
+                <ol class="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
+                    <?php foreach ($breadcrumbs as $idx => $crumb): ?>
+                        <?php if ($idx > 0): ?>
+                            <li class="text-slate-300 select-none">/</li>
+                        <?php endif; ?>
+                        
+                        <li class="inline-flex items-center">
+                            <?php if (!empty($crumb['url'])): ?>
+                                <a href="<?php echo htmlspecialchars($crumb['url']); ?>" 
+                                   class="hover:text-blue-700 hover:underline transition flex items-center gap-1.5 text-slate-500 font-medium">
+                                    <?php if (!empty($crumb['icon'])): ?>
+                                        <i class="<?php echo $crumb['icon']; ?> text-[11px] text-slate-400"></i>
+                                    <?php endif; ?>
+                                    <span><?php echo htmlspecialchars($crumb['label']); ?></span>
+                                </a>
+                            <?php elseif (!empty($crumb['active'])): ?>
+                                <span class="font-semibold text-blue-700 flex items-center gap-1.5" aria-current="page">
+                                    <?php if (!empty($crumb['icon'])): ?>
+                                        <i class="<?php echo $crumb['icon']; ?> text-[11px] text-blue-600"></i>
+                                    <?php endif; ?>
+                                    <span><?php echo htmlspecialchars($crumb['label']); ?></span>
+                                </span>
+                            <?php else: ?>
+                                <span class="text-slate-400 flex items-center gap-1.5 font-normal">
+                                    <?php if (!empty($crumb['icon'])): ?>
+                                        <i class="<?php echo $crumb['icon']; ?> text-[11px]"></i>
+                                    <?php endif; ?>
+                                    <span><?php echo htmlspecialchars($crumb['label']); ?></span>
+                                </span>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </nav>
         </div>
     </div>
 

@@ -351,22 +351,7 @@ $statuses = ['active', 'inactive', 'suspended'];
                 <script>setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 5000);</script>
             <?php endif; ?>
 
-            <!-- PAGE HEADER -->
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-3xl font-bold text-slate-800">
-                        <i class="fa-solid fa-users-cog text-blue-700 mr-2"></i>
-                        User Management
-                    </h2>
-                    <p class="text-slate-500 mt-2">
-                        Manage system users, roles, and permissions.
-                    </p>
-                </div>
-                <button onclick="openCreateModal()" class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-3 rounded-lg shadow btn-scale">
-                    <i class="fa-solid fa-user-plus mr-2"></i>
-                    Create New User
-                </button>
-            </div>
+
 
             <!-- STATISTICS -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
@@ -456,11 +441,11 @@ $statuses = ['active', 'inactive', 'suspended'];
                         <h2 class="text-2xl font-bold">Users</h2>
                         <p class="text-slate-500 mt-1">Manage user accounts and permissions</p>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-3">
                         <input type="text" id="searchUsers" placeholder="Search users..." 
                                class="border rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-700">
-                        <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm btn-scale">
-                            <i class="fa-solid fa-plus mr-1"></i> Add
+                        <button onclick="openCreateModal()" class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-user-plus"></i> Create New User
                         </button>
                     </div>
                 </div>

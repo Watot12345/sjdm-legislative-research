@@ -1119,47 +1119,7 @@ $total_docs = $conn->query("SELECT COUNT(*) as count FROM supporting_documents")
                 <script>setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 5000);</script>
             <?php endif; ?>
 
-            <!-- PAGE HEADER -->
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-3xl font-bold text-slate-800">
-                        Impact Assessment Module
-                    </h2>
-                    <p class="text-slate-500 mt-2">
-                        Evaluate policy implementation with <strong>KPI scoring</strong> and <strong>impact percentage calculation</strong>.
-                        <span class="text-purple-600 font-semibold">High/Moderate impact policies can be submitted to Benchmarking.</span>
-                    </p>
-                    <div class="mt-2 flex items-center gap-4 flex-wrap">
-                        <span class="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-gavel mr-1"></i> <?php echo $total_docs; ?> Legal Documents
-                        </span>
-                        <span class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-chart-simple mr-1"></i> <?php echo $evaluated_count; ?> Policies Evaluated
-                        </span>
-                        <span class="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-arrow-right mr-1"></i> <?php echo $benchmarking_count; ?> To Benchmarking
-                        </span>
-                        <span class="text-sm bg-red-100 text-red-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-archive mr-1"></i> <?php echo $archived_count; ?> Archived
-                        </span>
-                        <span class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-check-circle mr-1"></i> <?php echo $submitted_count; ?> Submitted
-                        </span>
-                    </div>
-                </div>
-                <div class="flex gap-3">
-                    <a href="../modules/data-collection.php" 
-                       class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-3 rounded-lg shadow btn-scale">
-                        <i class="fa-solid fa-arrow-left mr-2"></i>
-                        Data Collection
-                    </a>
-                    <a href="../modules/benchmarking-analysis.php" 
-                       class="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-lg shadow btn-scale">
-                        <i class="fa-solid fa-arrow-right mr-2"></i>
-                        Benchmarking
-                    </a>
-                </div>
-            </div>
+
 
             <!-- KPI CARDS -->
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-8 gap-6 mb-8">
@@ -1323,10 +1283,19 @@ $total_docs = $conn->query("SELECT COUNT(*) as count FROM supporting_documents")
                             <span class="text-purple-600 font-semibold">Evaluate KPIs to calculate impact percentage.</span>
                         </p>
                     </div>
-                    <button class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg btn-scale">
-                        <i class="fa-solid fa-file-export mr-2"></i>
-                        Export Report
-                    </button>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <a href="../modules/data-collection.php" 
+                           class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrow-left"></i> Data Collection
+                        </a>
+                        <a href="../modules/benchmarking-analysis.php" 
+                           class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrow-right"></i> Benchmarking
+                        </a>
+                        <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-file-export"></i> Export Report
+                        </button>
+                    </div>
                 </div>
 
                 <div class="overflow-x-auto">

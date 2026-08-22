@@ -132,15 +132,6 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
                 </p>
             </div>
         </div>
-
-        <!-- Sidebar Collapse / Expand Toggle Button -->
-        <button type="button" 
-                onclick="toggleSidebarCompact()" 
-                id="sidebarToggleBtn"
-                class="w-8 h-8 rounded-lg bg-blue-800/80 hover:bg-blue-700 text-blue-200 hover:text-white flex items-center justify-center transition shrink-0 cursor-pointer border border-blue-600/30"
-                title="Collapse / Expand Sidebar">
-            <i id="sidebarToggleIcon" class="fa-solid fa-angles-left text-xs"></i>
-        </button>
     </div>
 
     <!-- Navigation Menu -->

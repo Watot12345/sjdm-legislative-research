@@ -763,23 +763,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_matrix'])) {
         <script>setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 5000);</script>
     <?php endif; ?>
 
-    <!-- PAGE HEADER -->
-    <div class="flex justify-between items-center mb-8 no-print">
-        <div>
-            <h2 class="text-3xl font-bold text-slate-800">
-                <i class="fa-solid fa-scale-balanced text-purple-600 mr-3"></i>
-                Benchmarking and Comparative Analysis
-            </h2>
-            <p class="text-slate-500 mt-2">
-                Compare policies against legal documents using the comprehensive comparison matrix.
-            </p>
-        </div>
-        <a href="../modules/impact-assessment.php" 
-           class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-3 rounded-lg shadow btn-scale">
-            <i class="fa-solid fa-arrow-left mr-2"></i>
-            Back to Assessment
-        </a>
-    </div>
+
 
     <!-- KPI CARDS -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-8 no-print">
@@ -901,10 +885,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_matrix'])) {
                     Click <strong>"Analyze"</strong> to view the full policy report and evaluate using the Comparison Matrix.
                 </p>
             </div>
-            <button class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg btn-scale">
-                <i class="fa-solid fa-file-export mr-2"></i>
-                Export Report
-            </button>
+            <div class="flex items-center gap-2 flex-wrap">
+                <a href="../modules/impact-assessment.php" 
+                   class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Assessment
+                </a>
+                <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-file-export"></i> Export Report
+                </button>
+            </div>
         </div>
 
         <div class="overflow-x-auto">

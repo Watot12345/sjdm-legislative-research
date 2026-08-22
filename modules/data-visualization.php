@@ -223,21 +223,7 @@ $activity_result = $conn->query($activity_sql);
 
 <main class="p-8">
 
-    <!-- ========================================= -->
-    <!-- PAGE HEADER -->
-    <!-- ========================================= -->
-    <div class="flex justify-between items-center mb-8">
-        <div>
-            <h2 class="text-3xl font-bold text-slate-800">
-                <i class="fa-solid fa-chart-pie text-purple-600 mr-3"></i>
-                Data Visualization Dashboard
-            </h2>
-            <p class="text-slate-500 mt-2">
-                Interactive dashboards showing real-time analytics from all modules: 
-                <span class="font-semibold text-purple-600">Data Collection, Impact Assessment, Benchmarking, and Legal Documents</span>
-            </p>
-        </div>
-    </div>
+
 
     <!-- ========================================= -->
     <!-- MODULE OVERVIEW CARDS -->

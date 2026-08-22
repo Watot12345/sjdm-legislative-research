@@ -1301,37 +1301,7 @@ $datasets = $conn->query($sql);
                 </script>
             <?php endif; ?>
 
-            <!-- PAGE HEADER -->
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-3xl font-bold text-slate-800">
-                        Data Collection and Integration Module
-                    </h2>
-                    <p class="text-slate-500 mt-2">
-                        Collect, validate, organize, and manage datasets with <strong>Gemini AI</strong>-powered legal framework analysis. <span class="text-purple-600 font-semibold">Approved datasets automatically proceed to Impact Assessment.</span>
-                    </p>
-                    <div class="mt-2 flex items-center gap-4 flex-wrap">
-                        <span class="bridge-status <?php echo $gemini_status == 'Connected' ? 'online' : ($gemini_status == 'Disconnected' ? 'offline' : 'unknown'); ?>">
-                            <i class="fa-solid fa-circle mr-1" style="font-size: 8px;"></i>
-                            Gemini API: <?php echo $gemini_status; ?>
-                        </span>
-                        <span class="text-sm text-purple-600">
-                            <i class="fa-solid fa-robot mr-1"></i>
-                            AI Engine: Active
-                        </span>
-                        <span class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-arrow-right mr-1"></i>
-                            Auto-forwards to Impact Assessment
-                        </span>
-                    </div>
-                </div>
-                <?php if (canUploadData()): ?>
-                <button onclick="openUploadModal()" class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-3 rounded-lg shadow btn-scale">
-                    <i class="fa-solid fa-plus mr-2"></i>
-                    Add New Dataset
-                </button>
-                <?php endif; ?>
-            </div>
+
 
             <!-- UPLOAD MODAL -->
             <div id="uploadModal" class="modal">
@@ -1673,17 +1643,14 @@ $datasets = $conn->query($sql);
                             ?>
                         </p>
                     </div>
-                    <div class="flex gap-2">
-                        <span class="gemini-badge px-3 py-1 rounded-full text-sm">
-                            <i class="fa-solid fa-robot mr-1"></i> Gemini AI
-                        </span>
-                        <span class="bridge-status <?php echo $gemini_status == 'Connected' ? 'online' : ($gemini_status == 'Disconnected' ? 'offline' : 'unknown'); ?> text-sm px-3 py-1 rounded-full">
-                            <i class="fa-solid fa-circle mr-1" style="font-size: 8px;"></i>
-                            <?php echo $gemini_status; ?>
-                        </span>
-                        <button class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg btn-scale">
-                            <i class="fa-solid fa-file-export mr-2"></i>
-                            Export
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <?php if (canUploadData()): ?>
+                        <button onclick="openUploadModal()" class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-plus"></i> Add New Dataset
+                        </button>
+                        <?php endif; ?>
+                        <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-file-export"></i> Export
                         </button>
                     </div>
                 </div>

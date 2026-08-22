@@ -867,43 +867,7 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                 <script>setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 5000);</script>
             <?php endif; ?>
 
-            <!-- PAGE HEADER -->
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-3xl font-bold text-slate-800">
-                        <i class="fa-solid fa-gavel text-blue-700 mr-2"></i>
-                        Policy Research and Analysis
-                    </h2>
-                    <p class="text-slate-500 mt-2">
-                        Manually input policy details for AI-powered legal research and analysis.
-                    </p>
-                    <div class="mt-2 flex items-center gap-4 flex-wrap">
-                        <span class="bridge-status <?php echo $gemini_status == 'Connected' ? 'online' : 'offline'; ?>">
-                            <i class="fa-solid fa-circle mr-1" style="font-size: 8px;"></i>
-                            Gemini API: <?php echo $gemini_status; ?>
-                        </span>
-                        <span class="legal-badge px-3 py-1 rounded-full text-sm">
-                            <i class="fa-solid fa-scale-balanced mr-1"></i> Legal Research
-                        </span>
-                        <span class="text-sm text-purple-600">
-                            <i class="fa-solid fa-robot mr-1"></i>
-                            AI Engine: Active
-                        </span>
-                    </div>
-                </div>
-                <div class="flex gap-3">
-                    <?php if (canEditPolicy()): ?>
-                    <a href="?create=1" class="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-lg shadow btn-scale font-semibold flex items-center gap-2">
-                        <i class="fa-solid fa-plus"></i>
-                        Create New Policy
-                    </a>
-                    <?php endif; ?>
-                    <a href="data-collection.php" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow btn-scale font-semibold flex items-center gap-2">
-                        <i class="fa-solid fa-arrow-right"></i>
-                        Data Collection
-                    </a>
-                </div>
-            </div>
+
 
             <!-- STATISTICS -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -1230,8 +1194,13 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                             <?php endif; ?>
                         </form>
 
+                        <?php if (canEditPolicy()): ?>
                         <a href="?create=1" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-xs font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
                             <i class="fa-solid fa-plus"></i> Create New Policy
+                        </a>
+                        <?php endif; ?>
+                        <a href="data-collection.php" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold btn-scale flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrow-right"></i> Data Collection
                         </a>
                         <span class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-xs font-semibold">
                             <i class="fa-solid fa-file-lines mr-1"></i> <?php echo $filtered_total_docs; ?> Policies
