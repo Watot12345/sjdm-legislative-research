@@ -129,6 +129,13 @@ $route_map = [
             ['label' => 'User Management', 'url' => '', 'active' => true]
         ]
     ],
+    'activity_logs.php' => [
+        'title' => 'Activity & Audit Trail',
+        'crumbs' => [
+            ['label' => 'Administration', 'url' => '', 'icon' => 'fa-solid fa-shield-halved'],
+            ['label' => 'Activity & Audit Trail', 'url' => '', 'active' => true]
+        ]
+    ],
     'profile.php' => [
         'title' => 'User Profile',
         'crumbs' => [

@@ -138,8 +138,9 @@ for ($i = 5; $i >= 0; $i--) {
     $trend_counts[] = $cnt;
 }
 
-// Dynamic Recent Activities & Notifications (Enforced with RBAC)
-$recent_activities_res = $conn->query("SELECT * FROM activity_logs $notif_where_sql ORDER BY timestamp DESC LIMIT 5");
+// Dynamic Recent Legislative Activities (Excludes authentication and system logs)
+$legislative_modules_filter = "WHERE module IN ('Policy Research', 'Data Collection', 'Impact Assessment', 'Benchmarking', 'Benchmarking Analysis', 'Report Generation')";
+$recent_activities_res = $conn->query("SELECT * FROM activity_logs $legislative_modules_filter ORDER BY timestamp DESC LIMIT 5");
 
 // Bell Notifications Data (Filtered to exclude auth logs)
 $unread_notifs_count = (int)($conn->query("SELECT COUNT(*) as cnt FROM activity_logs $notif_where_sql AND is_read = 0")->fetch_assoc()['cnt'] ?? 0);
@@ -663,11 +664,12 @@ Generated Reports
 
         </h2>
 
-        <button class="bg-blue-700 text-white px-5 py-2 rounded-lg hover:bg-blue-800">
-
-            View All
-
-        </button>
+        <?php if (function_exists('isAdmin') && isAdmin()): ?>
+        <a href="admin/activity_logs.php" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 shadow-sm">
+            <span>View Full Audit Trail</span>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+        </a>
+        <?php endif; ?>
 
     </div>
 

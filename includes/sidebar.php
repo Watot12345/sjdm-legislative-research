@@ -227,6 +227,16 @@ if (localStorage.getItem('sidebar_compact') === 'true') {
                 <span class="sidebar-text text-sm flex-1">User Management</span>
                 <span class="sidebar-badge bg-yellow-500 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
             </a>
+
+            <!-- Activity & Audit Trail -->
+            <a href="<?php echo $base_path; ?>admin/activity_logs.php"
+               data-title="Activity & Audit Trail"
+               title="Activity & Audit Trail"
+               class="sidebar-nav-item flex items-center gap-3.5 px-4 py-2.5 mx-3 rounded-xl transition-all duration-150 group <?php echo $currentPage == 'activity_logs.php' ? 'bg-blue-700 text-white font-semibold shadow-md border border-blue-500/30' : 'text-blue-100 hover:bg-blue-800/60 hover:text-white'; ?>">
+                <i class="fa-solid fa-clipboard-list w-6 text-center text-base shrink-0 group-hover:scale-110 transition-transform"></i>
+                <span class="sidebar-text text-sm flex-1">System Activity</span>
+                <span class="sidebar-badge bg-yellow-500 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
+            </a>
         </div>
         <?php endif; ?>
 
