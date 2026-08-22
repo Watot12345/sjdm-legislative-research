@@ -15,6 +15,11 @@ if (!isset($conn) || !$conn) {
 // Notification filter (Exclude authentication login/logout logs)
 $notif_where_sql = "WHERE action NOT LIKE '%login%' AND action NOT LIKE '%logout%' AND module != 'Authentication'";
 
+// Enforce Notification RBAC: Only Administrators see User Management and Security audit logs
+if (function_exists('isAdmin') && !isAdmin()) {
+    $notif_where_sql .= " AND module NOT IN ('User Management', 'Security', 'Administration')";
+}
+
 // Handle AJAX Mark All Read
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all_read'])) {
     $conn->query("UPDATE activity_logs SET is_read = 1 $notif_where_sql AND is_read = 0");
@@ -160,7 +165,7 @@ if (isset($route_map[$current_file])) {
 }
 ?>
 
-<header class="bg-white shadow-sm border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between relative z-30">
+<header class="sticky top-0 bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200 px-6 md:px-8 py-3.5 flex items-center justify-between z-30 transition-all">
 
     <!-- Left: Sidebar Toggle & Page Title with Functional Breadcrumbs -->
     <div class="flex items-center gap-4">

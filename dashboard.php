@@ -14,6 +14,11 @@ $conn = getDBConnection();
 // Bell Notifications Data (Exclude login/logout authentication logs)
 $notif_where_sql = "WHERE action NOT LIKE '%login%' AND action NOT LIKE '%logout%' AND module != 'Authentication'";
 
+// Enforce Notification RBAC: Only Administrators see User Management and Security audit logs
+if (function_exists('isAdmin') && !isAdmin()) {
+    $notif_where_sql .= " AND module NOT IN ('User Management', 'Security', 'Administration')";
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all_read'])) {
     $conn->query("UPDATE activity_logs SET is_read = 1 $notif_where_sql AND is_read = 0");
     echo json_encode(['success' => true]);
@@ -133,8 +138,8 @@ for ($i = 5; $i >= 0; $i--) {
     $trend_counts[] = $cnt;
 }
 
-// Dynamic Recent Activities & Notifications
-$recent_activities_res = $conn->query("SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 5");
+// Dynamic Recent Activities & Notifications (Enforced with RBAC)
+$recent_activities_res = $conn->query("SELECT * FROM activity_logs $notif_where_sql ORDER BY timestamp DESC LIMIT 5");
 
 // Bell Notifications Data (Filtered to exclude auth logs)
 $unread_notifs_count = (int)($conn->query("SELECT COUNT(*) as cnt FROM activity_logs $notif_where_sql AND is_read = 0")->fetch_assoc()['cnt'] ?? 0);
