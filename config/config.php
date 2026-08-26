@@ -79,11 +79,25 @@ if (Environment::get('APP_ENV') === 'development') {
 // DATABASE CONNECTION FUNCTION
 // ============================================
 function getDBConnection() {
-    $host = Environment::get('DB_HOST', '127.0.0.1');
-    $username = Environment::get('DB_USERNAME', 'root');
-    $password = Environment::get('DB_PASSWORD', '');
-    $database = Environment::get('DB_NAME', 'legislative_db');
-    $port = (int)Environment::get('DB_PORT', 3306);
+    $dbUrl = Environment::get('DATABASE_URL');
+    if (!empty($dbUrl)) {
+        $parsed = parse_url($dbUrl);
+        if ($parsed) {
+            $host = $parsed['host'] ?? '127.0.0.1';
+            $port = (int)($parsed['port'] ?? 3306);
+            $username = $parsed['user'] ?? 'root';
+            $password = $parsed['pass'] ?? '';
+            $database = ltrim($parsed['path'] ?? '', '/');
+        }
+    }
+
+    if (empty($host)) {
+        $host = Environment::get('DB_HOST', '127.0.0.1');
+        $username = Environment::get('DB_USERNAME', 'root');
+        $password = Environment::get('DB_PASSWORD', '');
+        $database = Environment::get('DB_NAME', Environment::get('DB_DATABASE', 'legislative_db'));
+        $port = (int)Environment::get('DB_PORT', 3306);
+    }
     
     // In LAMPP / Linux environments, 127.0.0.1 forces TCP connection over port 3306
     if ($host === 'localhost' && !file_exists('/opt/lampp/var/mysql/mysql.sock')) {
