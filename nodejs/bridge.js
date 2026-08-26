@@ -46,18 +46,24 @@ const env = loadEnv(ENV_PATH);
 // ============================================
 // CONFIGURATION (from config/.env)
 // ============================================
-const GEMINI_API_KEY = env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = env.GEMINI_MODEL || 'gemini-2.5-flash';
+const rawKeys = [
+    ...(env.GEMINI_API_KEY ? env.GEMINI_API_KEY.split(',') : []),
+    ...(env.GEMINI_FALLBACK_API_KEYS ? env.GEMINI_FALLBACK_API_KEYS.split(',') : []),
+    ...(env.GEMINI_BACKUP_API_KEY ? env.GEMINI_BACKUP_API_KEY.split(',') : [])
+].map(k => k.trim()).filter(Boolean);
+
+const API_KEYS = [...new Set(rawKeys)];
+const GEMINI_MODEL = env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_TEMPERATURE = parseFloat(env.GEMINI_TEMPERATURE) || 0.7;
 const GEMINI_MAX_TOKENS = parseInt(env.GEMINI_MAX_TOKENS, 10) || 4096;
 const PORT = 3000;
 
-if (!GEMINI_API_KEY) {
+if (API_KEYS.length === 0) {
     console.error('❌ GEMINI_API_KEY is not set in ../config/.env');
     process.exit(1);
 }
 
-console.log('🔑 Using API Key:', GEMINI_API_KEY.substring(0, 15) + '...');
+console.log(`🔑 Loaded ${API_KEYS.length} API key(s) (Primary: ${API_KEYS[0].substring(0, 15)}...)`);
 console.log('🤖 Model:', GEMINI_MODEL);
 
 const server = http.createServer(async (req, res) => {
@@ -97,45 +103,54 @@ const server = http.createServer(async (req, res) => {
 
             console.log('📤 Processing:', data.prompt.substring(0, 60) + '...');
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+            let lastError = null;
 
-            const requestData = {
-                contents: [{
-                    parts: [{ text: data.prompt }]
-                }],
-                generationConfig: {
-                    temperature: GEMINI_TEMPERATURE,
-                    maxOutputTokens: data.maxTokens || GEMINI_MAX_TOKENS
+            for (let i = 0; i < API_KEYS.length; i++) {
+                const currentKey = API_KEYS[i];
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(currentKey)}`;
+
+                const requestData = {
+                    contents: [{
+                        parts: [{ text: data.prompt }]
+                    }],
+                    generationConfig: {
+                        temperature: GEMINI_TEMPERATURE,
+                        maxOutputTokens: data.maxTokens || GEMINI_MAX_TOKENS
+                    }
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const responseData = await response.json();
+
+                    if (!response.ok || responseData.error) {
+                        lastError = responseData.error?.message || `HTTP ${response.status}`;
+                        console.warn(`⚠️ API Key #${i + 1} failed: ${lastError}. Trying fallback if available...`);
+                        continue;
+                    }
+
+                    const content = responseData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+                    console.log('✅ Generated:', content.length, 'characters');
+
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ success: true, content: content }));
+                    return;
+                } catch (fetchErr) {
+                    lastError = fetchErr.message;
+                    console.warn(`⚠️ API Key #${i + 1} network error: ${fetchErr.message}`);
                 }
-            };
-
-            console.log('📡 Calling Gemini REST API (' + GEMINI_MODEL + ')...');
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestData)
-            });
-
-            const responseData = await response.json();
-            console.log('📡 Response Status:', response.status);
-
-            if (responseData.error) {
-                console.error('❌ Gemini API Error:', JSON.stringify(responseData.error, null, 2));
-                res.writeHead(500);
-                res.end(JSON.stringify({
-                    success: false,
-                    error: responseData.error.message || 'API Error',
-                    details: responseData.error
-                }));
-                return;
             }
 
-            const content = responseData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-            console.log('✅ Generated:', content.length, 'characters');
-
-            res.writeHead(200);
-            res.end(JSON.stringify({ success: true, content: content }));
+            res.writeHead(500);
+            res.end(JSON.stringify({
+                success: false,
+                error: `All ${API_KEYS.length} Gemini API key(s) failed: ${lastError}`
+            }));
 
         } catch (error) {
             console.error('❌ Error:', error.message);

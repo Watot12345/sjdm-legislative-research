@@ -19,10 +19,10 @@ require_once __DIR__ . '/../config/config.php';
  */
 function callGeminiAPI($prompt, $temperature = 0.7, $maxTokens = 2048) {
     $config = getGeminiConfig();
-    $apiKey = $config['api_key'];
+    $apiKeys = !empty($config['api_keys']) ? $config['api_keys'] : (empty($config['api_key']) ? [] : [$config['api_key']]);
 
-    if (empty($apiKey)) {
-        error_log("Gemini API: GEMINI_API_KEY is not set in config/.env");
+    if (empty($apiKeys)) {
+        error_log("Gemini API: No GEMINI_API_KEY configured in config/.env");
         return null;
     }
 
@@ -56,77 +56,86 @@ function callGeminiAPI($prompt, $temperature = 0.7, $maxTokens = 2048) {
         error_log("Gemini Cache Check Error: " . $e->getMessage());
     }
 
-    // 3. Make cURL call to Gemini API if not in cache
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$config['model']}:generateContent?key=" . urlencode($apiKey);
+    // 3. Make cURL call to Gemini API with automatic fallback across configured keys
+    $lastError = null;
 
-    $data = [
-        "contents" => [
-            [
-                "parts" => [
-                    ["text" => $trimmedPrompt]
+    foreach ($apiKeys as $index => $apiKey) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$config['model']}:generateContent?key=" . urlencode($apiKey);
+
+        $data = [
+            "contents" => [
+                [
+                    "parts" => [
+                        ["text" => $trimmedPrompt]
+                    ]
                 ]
+            ],
+            "generationConfig" => [
+                "temperature" => (float)$temperature,
+                "topK" => 40,
+                "topP" => 0.95,
+                "maxOutputTokens" => (int)$maxTokens
             ]
-        ],
-        "generationConfig" => [
-            "temperature" => (float)$temperature,
-            "topK" => 40,
-            "topP" => 0.95,
-            "maxOutputTokens" => (int)$maxTokens
-        ]
-    ];
+        ];
 
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
 
-    if ($curlError) {
-        error_log("Gemini API cURL Error: " . $curlError);
-        return null;
-    }
-
-    if ($httpCode != 200) {
-        $detail = '';
-        $decoded = json_decode($response, true);
-        if (isset($decoded['error']['message'])) {
-            $detail = " - " . $decoded['error']['message'];
+        if ($curlError) {
+            $lastError = "cURL Error: " . $curlError;
+            error_log("Gemini API (Key #".($index + 1).") cURL Error: " . $curlError . ". Trying next key if available...");
+            continue;
         }
-        error_log("Gemini API HTTP Error: " . $httpCode . $detail);
-        return null;
-    }
 
-    $result = json_decode($response, true);
-    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-        $generatedText = $result['candidates'][0]['content']['parts'][0]['text'];
-
-        // Save generated result to ai_cache table for future requests
-        if ($conn && $promptHash) {
-            try {
-                $saveStmt = $conn->prepare("INSERT INTO ai_cache (prompt_hash, response_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE response_text = VALUES(response_text)");
-                if ($saveStmt) {
-                    $saveStmt->bind_param("ss", $promptHash, $generatedText);
-                    $saveStmt->execute();
-                    $saveStmt->close();
-                }
-            } catch (Exception $e) {
-                error_log("Gemini Cache Save Error: " . $e->getMessage());
+        if ($httpCode != 200) {
+            $detail = '';
+            $decoded = json_decode($response, true);
+            if (isset($decoded['error']['message'])) {
+                $detail = " - " . $decoded['error']['message'];
             }
+            $lastError = "HTTP Error {$httpCode}{$detail}";
+            error_log("Gemini API (Key #".($index + 1).") failed with HTTP {$httpCode}{$detail}. Trying fallback key if available...");
+            continue;
         }
 
-        return $generatedText;
+        $result = json_decode($response, true);
+        if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+            $generatedText = $result['candidates'][0]['content']['parts'][0]['text'];
+
+            // Save generated result to ai_cache table for future requests
+            if ($conn && $promptHash) {
+                try {
+                    $saveStmt = $conn->prepare("INSERT INTO ai_cache (prompt_hash, response_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE response_text = VALUES(response_text)");
+                    if ($saveStmt) {
+                        $saveStmt->bind_param("ss", $promptHash, $generatedText);
+                        $saveStmt->execute();
+                        $saveStmt->close();
+                    }
+                } catch (Exception $e) {
+                    error_log("Gemini Cache Save Error: " . $e->getMessage());
+                }
+            }
+
+            return $generatedText;
+        }
+
+        $lastError = "Unexpected response format";
+        error_log("Gemini API (Key #".($index + 1)."): unexpected response shape. Trying fallback key if available...");
     }
 
-    error_log("Gemini API: unexpected success response shape");
+    error_log("Gemini API: All " . count($apiKeys) . " configured API key(s) failed. Last error: " . $lastError);
     return null;
 }

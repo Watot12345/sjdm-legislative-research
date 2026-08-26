@@ -8,7 +8,8 @@ class Environment {
     
     public static function load($filePath) {
         if (!file_exists($filePath)) {
-            throw new Exception(".env file not found at: " . $filePath);
+            // .env file is optional in containerized/cloud environments
+            return;
         }
         
         $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -61,12 +62,8 @@ class Environment {
     }
 }
 
-// Load the .env file
-try {
-    Environment::load(__DIR__ . '/.env');
-} catch (Exception $e) {
-    die("Error loading configuration: " . $e->getMessage());
-}
+// Load the .env file if present
+Environment::load(__DIR__ . '/.env');
 
 // Set timezone
 $timezone = Environment::get('TIMEZONE', 'Asia/Manila');
@@ -86,21 +83,22 @@ function getDBConnection() {
     $username = Environment::get('DB_USERNAME', 'root');
     $password = Environment::get('DB_PASSWORD', '');
     $database = Environment::get('DB_NAME', 'legislative_db');
+    $port = (int)Environment::get('DB_PORT', 3306);
     
     // In LAMPP / Linux environments, 127.0.0.1 forces TCP connection over port 3306
-    if ($host === 'localhost') {
+    if ($host === 'localhost' && !file_exists('/opt/lampp/var/mysql/mysql.sock')) {
         $host = '127.0.0.1';
     }
     
-    $conn = @new mysqli($host, $username, $password, $database);
+    $conn = @new mysqli($host, $username, $password, $database, $port);
     
-    if ($conn->connect_error) {
+    if ($conn->connect_error && file_exists('/opt/lampp/var/mysql/mysql.sock')) {
         // Fallback connection attempt using LAMPP default socket
         $conn = new mysqli('localhost', $username, $password, $database, null, '/opt/lampp/var/mysql/mysql.sock');
     }
     
     if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+        die("Database Connection failed: " . $conn->connect_error);
     }
     
     return $conn;
@@ -110,8 +108,26 @@ function getDBConnection() {
 // GEMINI API CONFIGURATION
 // ============================================
 function getGeminiConfig() {
+    $primaryKey = Environment::get('GEMINI_API_KEY', '');
+    $fallbackKeys = Environment::get('GEMINI_FALLBACK_API_KEYS', '');
+    $backupKey = Environment::get('GEMINI_BACKUP_API_KEY', '');
+    
+    $rawKeys = [];
+    if (!empty($primaryKey)) {
+        $rawKeys = array_merge($rawKeys, explode(',', $primaryKey));
+    }
+    if (!empty($fallbackKeys)) {
+        $rawKeys = array_merge($rawKeys, explode(',', $fallbackKeys));
+    }
+    if (!empty($backupKey)) {
+        $rawKeys = array_merge($rawKeys, explode(',', $backupKey));
+    }
+
+    $keys = array_values(array_unique(array_filter(array_map('trim', $rawKeys))));
+
     return [
-        'api_key' => Environment::get('GEMINI_API_KEY', ''),
+        'api_key' => $keys[0] ?? '',
+        'api_keys' => $keys,
         'model' => Environment::get('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
         'max_tokens' => Environment::get('GEMINI_MAX_TOKENS', 2048),
         'temperature' => Environment::get('GEMINI_TEMPERATURE', 0.7)

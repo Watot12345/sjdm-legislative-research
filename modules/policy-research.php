@@ -64,6 +64,61 @@ if (isset($_GET['get_citations_by_category'])) {
 }
 
 // ============================================
+// AJAX: Check If Policy Already Exists
+// ============================================
+if (isset($_GET['check_policy_exists'])) {
+    header('Content-Type: application/json');
+    $title = trim($_GET['title'] ?? '');
+    $exclude_id = trim($_GET['exclude_id'] ?? '');
+    
+    if (strlen($title) < 3) {
+        echo json_encode(['exists' => false, 'matches' => []]);
+        exit();
+    }
+    
+    $escaped_title = $conn->real_escape_string($title);
+    $exclude_clause = !empty($exclude_id) ? " AND document_id != '" . $conn->real_escape_string($exclude_id) . "'" : "";
+    
+    // 1. Exact match check (case-insensitive)
+    $exact_query = "SELECT document_id, title, category, upload_date FROM policy_documents WHERE LOWER(TRIM(title)) = LOWER(TRIM('$escaped_title')) $exclude_clause LIMIT 1";
+    $exact_res = $conn->query($exact_query);
+    
+    if ($exact_res && $exact_res->num_rows > 0) {
+        $row = $exact_res->fetch_assoc();
+        echo json_encode([
+            'exists' => true,
+            'exact' => true,
+            'message' => 'A policy with this exact title already exists in the repository.',
+            'matches' => [$row]
+        ]);
+        exit();
+    }
+    
+    // 2. Substring / Similar match check
+    $similar_query = "SELECT document_id, title, category, upload_date FROM policy_documents WHERE title LIKE '%$escaped_title%' $exclude_clause ORDER BY upload_date DESC LIMIT 3";
+    $similar_res = $conn->query($similar_query);
+    $matches = [];
+    if ($similar_res && $similar_res->num_rows > 0) {
+        while ($row = $similar_res->fetch_assoc()) {
+            $matches[] = $row;
+        }
+    }
+    
+    if (!empty($matches)) {
+        echo json_encode([
+            'exists' => true,
+            'exact' => false,
+            'message' => 'Similar existing policy documents found in the repository.',
+            'matches' => $matches
+        ]);
+        exit();
+    }
+    
+    echo json_encode(['exists' => false, 'matches' => []]);
+    exit();
+}
+
+// ============================================
 // HANDLE: Manual Policy Submission
 // ============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy'])) {
@@ -72,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy']
         header("Location: policy-research.php");
         exit();
     }
-    $policy_title = $conn->real_escape_string($_POST['policy_title']);
+    $policy_title = trim($_POST['policy_title']);
     $policy_issues = $conn->real_escape_string($_POST['policy_issues']);
     $policy_objectives = $conn->real_escape_string($_POST['policy_objectives']);
     $policy_category = $conn->real_escape_string($_POST['policy_category']);
@@ -80,6 +135,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy']
     $researcher = $conn->real_escape_string($_POST['researcher']);
     $legal_citations = $conn->real_escape_string($_POST['legal_citations'] ?? '');
     
+    // Exact duplicate check
+    $escaped_title = $conn->real_escape_string($policy_title);
+    $check_dup = $conn->query("SELECT document_id, title FROM policy_documents WHERE LOWER(TRIM(title)) = LOWER(TRIM('$escaped_title')) LIMIT 1");
+    if ($check_dup && $check_dup->num_rows > 0) {
+        $existing = $check_dup->fetch_assoc();
+        $_SESSION['toast'] = [
+            'type' => 'error',
+            'title' => 'Duplicate Policy Title',
+            'message' => 'Cannot save: A policy with this exact title already exists in the repository (' . $existing['document_id'] . ').'
+        ];
+        header("Location: policy-research.php?create=1&dup_error=1");
+        exit();
+    }
+
     // Generate unique document ID
     $document_id = 'POL-' . date('Ymd') . '-' . rand(1000, 9999);
     
@@ -93,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_manual_policy']
                     keywords, issues, objectives, researcher, legal_citations,
                     upload_date) 
                    VALUES 
-                   ('$document_id', '$policy_title', '$policy_description', '$policy_category', 'Pending',
+                   ('$document_id', '$escaped_title', '$policy_description', '$policy_category', 'Pending',
                     '$escaped_keywords', '$policy_issues', '$policy_objectives', '$researcher', '$legal_citations',
                     NOW())";
     
@@ -120,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_policy'])) {
         exit();
     }
     $doc_id = $conn->real_escape_string($_POST['doc_id']);
-    $policy_title = $conn->real_escape_string($_POST['policy_title']);
+    $policy_title = trim($_POST['policy_title']);
     $policy_issues = $conn->real_escape_string($_POST['policy_issues']);
     $policy_objectives = $conn->real_escape_string($_POST['policy_objectives']);
     $policy_category = $conn->real_escape_string($_POST['policy_category']);
@@ -128,8 +197,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_policy'])) {
     $researcher = $conn->real_escape_string($_POST['researcher']);
     $legal_citations = $conn->real_escape_string($_POST['legal_citations'] ?? '');
     
+    // Exact duplicate check (excluding current document)
+    $escaped_title = $conn->real_escape_string($policy_title);
+    $check_dup = $conn->query("SELECT document_id, title FROM policy_documents WHERE LOWER(TRIM(title)) = LOWER(TRIM('$escaped_title')) AND document_id != '$doc_id' LIMIT 1");
+    if ($check_dup && $check_dup->num_rows > 0) {
+        $existing = $check_dup->fetch_assoc();
+        $_SESSION['toast'] = [
+            'type' => 'error',
+            'title' => 'Duplicate Policy Title',
+            'message' => 'Cannot update: Another policy with this exact title already exists in the repository (' . $existing['document_id'] . ').'
+        ];
+        header("Location: policy-research.php?edit=1&doc_id=" . urlencode($doc_id) . "&dup_error=1");
+        exit();
+    }
+
     $update_sql = "UPDATE policy_documents SET 
-                   title = '$policy_title',
+                   title = '$escaped_title',
                    description = '$policy_description',
                    category = '$policy_category',
                    issues = '$policy_issues',
@@ -962,16 +1045,48 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                                 <!-- Left Column -->
                                 <div>
                                     <!-- Policy Title -->
-                                    <div class="mb-4">
-                                        <label class="form-label" for="policy_title">
-                                            <i class="fa-solid fa-heading text-blue-600 mr-1"></i>
-                                            Policy Title <span class="required">*</span>
-                                        </label>
-                                        <input type="text" name="policy_title" id="policy_title" 
-                                               class="form-control" placeholder="Enter the full policy title" 
-                                               required maxlength="255"
-                                               value="<?php echo ($selected_doc && $edit_mode) ? htmlspecialchars($selected_doc['title']) : ''; ?>">
-                                        <div class="char-count"><span id="titleCount"><?php echo ($selected_doc && $edit_mode) ? strlen($selected_doc['title']) : 0; ?></span>/255</div>
+                                    <div class="mb-4 relative">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <label class="form-label !mb-0" for="policy_title">
+                                                <i class="fa-solid fa-heading text-blue-600 mr-1"></i>
+                                                Policy Title <span class="required">*</span>
+                                            </label>
+                                            <div class="flex items-center gap-2">
+                                                <span id="titleStatusIndicator" class="hidden text-[11px] font-semibold flex items-center gap-1"></span>
+                                                <div class="char-count !mt-0"><span id="titleCount"><?php echo ($selected_doc && $edit_mode) ? strlen($selected_doc['title']) : 0; ?></span>/255</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="relative">
+                                            <input type="text" name="policy_title" id="policy_title" 
+                                                   class="form-control pr-10 transition-all duration-200" placeholder="Enter the full policy title" 
+                                                   required maxlength="255"
+                                                   autocomplete="off"
+                                                   value="<?php echo ($selected_doc && $edit_mode) ? htmlspecialchars($selected_doc['title']) : ''; ?>">
+                                            
+                                            <!-- Realtime Status Icon inside input -->
+                                            <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none" id="titleInputIconContainer">
+                                                <span id="titleInputIcon"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Floating Non-Disruptive Duplicate Warning Card (Overlay) -->
+                                        <div id="policyTitleWarning" class="hidden absolute left-0 right-0 top-full mt-1.5 z-30 bg-white/95 backdrop-blur-md rounded-xl border border-amber-200 shadow-2xl p-3.5 text-xs text-slate-800 transition-all duration-200 animate-in fade-in">
+                                            <div class="flex items-center justify-between pb-2 border-b border-amber-100 mb-2">
+                                                <div class="flex items-center gap-2">
+                                                    <i id="policyTitleWarningIcon" class="fa-solid fa-triangle-exclamation text-amber-600 text-sm shrink-0"></i>
+                                                    <span id="policyTitleWarningMsg" class="font-bold text-amber-900 leading-tight"></span>
+                                                </div>
+                                                <button type="button" onclick="dismissTitleWarning()" class="text-slate-400 hover:text-slate-600 rounded-full w-5 h-5 flex items-center justify-center transition" title="Dismiss notice">
+                                                    <i class="fa-solid fa-xmark text-xs"></i>
+                                                </button>
+                                            </div>
+                                            <div id="policyTitleMatchesList" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
+                                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                                                <span>💡 Tip: You can still proceed if this is a distinct version.</span>
+                                                <button type="button" onclick="dismissTitleWarning()" class="text-blue-600 hover:underline font-semibold">Got it</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <!-- Policy Category -->
@@ -2043,15 +2158,158 @@ $categories = ['Education', 'Health', 'Agriculture', 'Environment', 'Infrastruct
                 }, 500);
             <?php endif; ?>
             
-            // Character counters
+            // Character counters & Live Policy Exists Check (Polished Floating UI/UX)
             const titleInput = document.getElementById('policy_title');
             const issuesInput = document.getElementById('policy_issues');
             const objectivesInput = document.getElementById('policy_objectives');
             const descriptionInput = document.getElementById('policy_description');
             
+            const warningBox = document.getElementById('policyTitleWarning');
+            const warningIcon = document.getElementById('policyTitleWarningIcon');
+            const warningMsg = document.getElementById('policyTitleWarningMsg');
+            const matchesList = document.getElementById('policyTitleMatchesList');
+            const titleInputIcon = document.getElementById('titleInputIcon');
+            const titleStatusIndicator = document.getElementById('titleStatusIndicator');
+            const currentDocId = '<?php echo ($selected_doc && $edit_mode) ? $selected_doc['document_id'] : ''; ?>';
+            
+            let isExactDuplicate = false;
+            let exactDocId = '';
+            let exactTitle = '';
+
+            window.dismissTitleWarning = function() {
+                if (warningBox) warningBox.classList.add('hidden');
+                warningDismissed = true;
+            };
+
+            // Close floating warning when clicking anywhere outside
+            document.addEventListener('click', function(e) {
+                if (warningBox && !warningBox.contains(e.target) && e.target !== titleInput) {
+                    warningBox.classList.add('hidden');
+                }
+            });
+            
             if (titleInput) {
                 titleInput.addEventListener('input', function() {
+                    const val = this.value.trim();
                     document.getElementById('titleCount').textContent = this.value.length;
+                    warningDismissed = false;
+                    
+                    clearTimeout(titleCheckTimeout);
+                    
+                    if (val.length < 3) {
+                        isExactDuplicate = false;
+                        if (warningBox) warningBox.classList.add('hidden');
+                        if (titleInputIcon) titleInputIcon.innerHTML = '';
+                        if (titleStatusIndicator) titleStatusIndicator.className = 'hidden';
+                        titleInput.classList.remove('border-red-400', 'border-amber-400', 'border-emerald-400');
+                        return;
+                    }
+                    
+                    // Show small subtle spinner inside input
+                    if (titleInputIcon) {
+                        titleInputIcon.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-blue-500 text-xs"></i>';
+                    }
+                    
+                    titleCheckTimeout = setTimeout(() => {
+                        fetch(`policy-research.php?check_policy_exists=1&title=${encodeURIComponent(val)}&exclude_id=${encodeURIComponent(currentDocId)}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.exists && data.matches && data.matches.length > 0) {
+                                    if (!warningDismissed && warningBox) {
+                                        warningBox.classList.remove('hidden');
+                                    }
+                                    
+                                    if (data.exact) {
+                                        isExactDuplicate = true;
+                                        exactDocId = data.matches[0].document_id;
+                                        exactTitle = data.matches[0].title;
+                                        
+                                        titleInput.classList.remove('border-emerald-400', 'border-amber-400');
+                                        titleInput.classList.add('border-red-400');
+                                        if (titleInputIcon) {
+                                            titleInputIcon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-500 text-sm" title="Exact Duplicate - Cannot Save"></i>';
+                                        }
+                                        if (titleStatusIndicator) {
+                                            titleStatusIndicator.className = 'text-[11px] font-bold text-red-600 flex items-center gap-1';
+                                            titleStatusIndicator.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Duplicate (Blocked)';
+                                        }
+                                        if (warningBox) {
+                                            warningBox.className = 'absolute left-0 right-0 top-full mt-1.5 z-30 bg-white rounded-xl border border-red-200 shadow-2xl p-3.5 text-xs text-slate-800 transition-all duration-200 animate-in fade-in';
+                                            warningIcon.className = 'fa-solid fa-circle-exclamation text-red-600 text-sm shrink-0';
+                                            warningMsg.className = 'font-bold text-red-900 leading-tight';
+                                            warningMsg.textContent = 'Exact Duplicate - Cannot Save';
+                                        }
+                                    } else {
+                                        isExactDuplicate = false;
+                                        titleInput.classList.remove('border-red-400', 'border-emerald-400');
+                                        titleInput.classList.add('border-amber-400');
+                                        if (titleInputIcon) {
+                                            titleInputIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm" title="Similar Policies Exist"></i>';
+                                        }
+                                        if (titleStatusIndicator) {
+                                            titleStatusIndicator.className = 'text-[11px] font-semibold text-amber-600 flex items-center gap-1';
+                                            titleStatusIndicator.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Similar Match';
+                                        }
+                                        if (warningBox) {
+                                            warningBox.className = 'absolute left-0 right-0 top-full mt-1.5 z-30 bg-white rounded-xl border border-amber-200 shadow-2xl p-3.5 text-xs text-slate-800 transition-all duration-200 animate-in fade-in';
+                                            warningIcon.className = 'fa-solid fa-triangle-exclamation text-amber-600 text-sm shrink-0';
+                                            warningMsg.className = 'font-bold text-amber-900 leading-tight';
+                                            warningMsg.textContent = 'Similar Existing Policies Found';
+                                        }
+                                    }
+                                    
+                                    if (matchesList) {
+                                        matchesList.innerHTML = data.matches.map(m => `
+                                            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/80 hover:bg-slate-100 transition text-slate-800">
+                                                <span class="font-medium truncate mr-2 flex items-center gap-1.5 text-xs">
+                                                    <i class="fa-regular fa-file-lines text-slate-400"></i> ${m.title}
+                                                </span>
+                                                <span class="text-[10px] text-slate-500 shrink-0 font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">${m.document_id}</span>
+                                            </div>
+                                        `).join('');
+                                    }
+                                } else {
+                                    isExactDuplicate = false;
+                                    if (warningBox) warningBox.classList.add('hidden');
+                                    titleInput.classList.remove('border-red-400', 'border-amber-400');
+                                    titleInput.classList.add('border-emerald-400');
+                                    if (titleInputIcon) {
+                                        titleInputIcon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500 text-sm" title="Title Available"></i>';
+                                    }
+                                    if (titleStatusIndicator) {
+                                        titleStatusIndicator.className = 'text-[11px] font-medium text-emerald-600 flex items-center gap-1';
+                                        titleStatusIndicator.innerHTML = '<i class="fa-solid fa-check"></i> Available';
+                                    }
+                                }
+                            })
+                            .catch(err => {
+                                isExactDuplicate = false;
+                                if (titleInputIcon) titleInputIcon.innerHTML = '';
+                                console.error('Policy check error:', err);
+                            });
+                    }, 350);
+                });
+
+                // Show popup again on focus if matches exist
+                titleInput.addEventListener('focus', function() {
+                    if (this.value.trim().length >= 3 && matchesList && matchesList.children.length > 0 && warningBox) {
+                        warningBox.classList.remove('hidden');
+                    }
+                });
+            }
+
+            // Block submission if exact duplicate
+            const policyForm = document.getElementById('policyForm');
+            if (policyForm) {
+                policyForm.addEventListener('submit', function(e) {
+                    if (isExactDuplicate) {
+                        e.preventDefault();
+                        if (warningBox) warningBox.classList.remove('hidden');
+                        titleInput.focus();
+                        titleInput.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                        alert(`Cannot save policy: A policy with this exact title already exists in the repository (${exactDocId}).\n\nPlease use a unique title.`);
+                        return false;
+                    }
                 });
             }
             if (issuesInput) {
