@@ -38,14 +38,12 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 /**
  * Check whether OTP / 2FA verification is enabled system-wide.
- * Defaults to true if not explicitly set to false.
+ * Enforced to always return true for production security.
  *
  * @return bool
  */
 function isOTPEnabled() {
-    return Environment::getBool('OTP_ENABLED', true) && 
-           Environment::getBool('AUTH_OTP_ENABLED', true) && 
-           Environment::getBool('ENABLE_2FA', true);
+    return true;
 }
 
 /**
@@ -146,9 +144,9 @@ function generateAndSendOTP($userId, $email, $fullName = '') {
     // Send via PHPMailer
     $mailResult = sendOTPEmailPHPMailer($email, $fullName, $otpCode);
 
-    // Development fallback log
-    if (Environment::getBool('APP_DEBUG', false) || Environment::get('APP_ENV') === 'development') {
-        error_log("[2FA OTP DEBUG] User ID: {$userId} ({$email}) | OTP: {$otpCode} | Sent: " . ($mailResult['sent'] ? 'YES' : 'NO - ' . $mailResult['message']));
+    // Log email dispatch failure if applicable (without logging the secret OTP code)
+    if (!$mailResult['sent']) {
+        error_log("[2FA OTP Warning] Mail dispatch failed for User ID: {$userId} ({$email}): " . $mailResult['message']);
     }
 
     return [
