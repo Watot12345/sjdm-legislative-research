@@ -34,12 +34,11 @@ RUN mkdir -p /var/www/html/uploads /var/www/html/logs /var/www/html/cache && \
     chown -R www-data:www-data /var/www/html && \
     chmod -R 775 /var/www/html/uploads /var/www/html/logs /var/www/html/cache
 
-# Copy entrypoint script and set permissions
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Change Apache default listening port from 80 to 8000
+RUN sed -i 's/80/8000/g' /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
 
-# Expose ports
-EXPOSE 8000 8080 7860
+# Expose port 8000
+EXPOSE 8000
 
-# Run dynamic entrypoint script
-ENTRYPOINT ["docker-entrypoint.sh"]
+# Start Apache server in foreground
+CMD ["apache2-foreground"]
