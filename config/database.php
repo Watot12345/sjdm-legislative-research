@@ -44,10 +44,36 @@ try {
                 ]
             );
         } catch (PDOException $e2) {
-            die("Database Connection Failed: " . $e2->getMessage());
+            // Local LAMPP Fallback
+            try {
+                $pdo = new PDO(
+                    "mysql:host=127.0.0.1;port=3306;dbname=legislative_db;charset=utf8mb4",
+                    "root",
+                    "",
+                    [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                    ]
+                );
+            } catch (PDOException $e3) {
+                die("Database Connection Failed: " . $e2->getMessage());
+            }
         }
     } else {
-        die("Database Connection Failed: " . $e->getMessage());
+        // Local LAMPP Fallback
+        try {
+            $pdo = new PDO(
+                "mysql:host=127.0.0.1;port=3306;dbname=legislative_db;charset=utf8mb4",
+                "root",
+                "",
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                ]
+            );
+        } catch (PDOException $e3) {
+            die("Database Connection Failed: " . $e->getMessage());
+        }
     }
 }
 

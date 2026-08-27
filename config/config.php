@@ -104,15 +104,28 @@ function getDBConnection() {
         $host = '127.0.0.1';
     }
     
-    $conn = @new mysqli($host, $username, $password, $database, $port);
-    
-    if ($conn->connect_error && file_exists('/opt/lampp/var/mysql/mysql.sock')) {
-        // Fallback connection attempt using LAMPP default socket
-        $conn = new mysqli('localhost', $username, $password, $database, null, '/opt/lampp/var/mysql/mysql.sock');
+    $conn = null;
+    try {
+        $conn = @new mysqli($host, $username, $password, $database, $port);
+    } catch (Throwable $e) {
+        $conn = null;
     }
     
-    if ($conn->connect_error) {
-        die("Database Connection failed: " . $conn->connect_error);
+    if ((!$conn || $conn->connect_error) && file_exists('/opt/lampp/var/mysql/mysql.sock')) {
+        try {
+            $conn = @new mysqli('localhost', $username, $password, $database, null, '/opt/lampp/var/mysql/mysql.sock');
+        } catch (Throwable $e) {}
+    }
+
+    if (!$conn || $conn->connect_error) {
+        // Fallback connection attempt for local LAMPP environment
+        try {
+            $conn = @new mysqli('127.0.0.1', 'root', '', 'legislative_db', 3306);
+        } catch (Throwable $e) {}
+    }
+    
+    if (!$conn || $conn->connect_error) {
+        die("Database Connection failed: " . ($conn ? $conn->connect_error : "Could not connect to database host"));
     }
     
     return $conn;
