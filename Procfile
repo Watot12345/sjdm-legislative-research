@@ -1,1 +1,1 @@
-web: apache2-foreground
+web: docker-entrypoint.sh
