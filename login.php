@@ -12,6 +12,8 @@ $notice = null;
 
 if (isset($_GET['expired'])) {
     $notice = "Your login session expired after 12 hours. Please sign in again.";
+} elseif (isset($_GET['timeout'])) {
+    $notice = "Your session timed out due to inactivity. Please sign in again.";
 } elseif (isset($_GET['logged_out'])) {
     $notice = "You have been securely signed out.";
 }
@@ -69,6 +71,7 @@ if (isset($_POST['login'])) {
                         $_SESSION['pending_2fa_email']     = $cleanEmail;
                         $_SESSION['pending_2fa_department']= $user['department'];
                         $_SESSION['pending_2fa_started']   = time();
+                        $_SESSION['pending_2fa_expires_at'] = time() + getOTPChallengeValiditySeconds();
 
                         // Generate and dispatch 6-digit OTP via PHPMailer
                         $otpResult = generateAndSendOTP((int)$user['id'], $cleanEmail, $user['full_name']);
@@ -87,6 +90,7 @@ if (isset($_POST['login'])) {
                         $_SESSION['email']       = $user['email'];
                         $_SESSION['department']  = $user['department'];
                         $_SESSION['login_time']  = time();
+                        $_SESSION['last_activity'] = time();
 
                         // Success Toast Notification
                         $_SESSION['toast'] = [

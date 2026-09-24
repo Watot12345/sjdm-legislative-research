@@ -13,6 +13,21 @@ $fullName   = $_SESSION['pending_2fa_full_name'] ?? 'User';
 $email      = $_SESSION['pending_2fa_email'] ?? '';
 $role       = $_SESSION['pending_2fa_role'] ?? 'viewer';
 $department = $_SESSION['pending_2fa_department'] ?? '';
+$challengeExpiresAt = (int)($_SESSION['pending_2fa_expires_at'] ?? (time() + getOTPChallengeValiditySeconds()));
+
+if (time() > $challengeExpiresAt) {
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    session_destroy();
+    header("Location: login.php?expired=1");
+    exit();
+}
 
 // If OTP is globally disabled, immediately log user in and redirect to dashboard
 if (!isOTPEnabled()) {
@@ -55,14 +70,17 @@ if (isset($_SESSION['pending_2fa_mail_warning'])) {
 if (isset($_POST['resend_otp'])) {
     $now = time();
     $lastResend = $_SESSION['last_otp_resend_time'] ?? 0;
-    
-    if ($now - $lastResend < 15) {
-        $error = "Please wait a few seconds before requesting another code.";
+    $otpCooldown = getOTPExpirySeconds();
+
+    if ($now - $lastResend < $otpCooldown) {
+        $remainingWait = $otpCooldown - ($now - $lastResend);
+        $error = "Please wait " . $remainingWait . " seconds before requesting another code.";
     } else {
         $_SESSION['last_otp_resend_time'] = $now;
         $genResult = generateAndSendOTP($userId, $email, $fullName);
         if ($genResult['success'] && ($genResult['mail_sent'] ?? true)) {
             $success = "A fresh 6-digit verification code has been sent to " . htmlspecialchars(maskEmailPreview($email)) . ".";
+            $_SESSION['pending_otp_expires_at'] = $genResult['otp_expires_at'] ?? (time() + $otpCooldown);
         } else {
             $error = "Failed to send code: " . htmlspecialchars($genResult['message'] ?? 'Unable to dispatch email.');
         }
@@ -95,6 +113,7 @@ if (isset($_POST['verify_otp'])) {
             $_SESSION['email']      = $email;
             $_SESSION['department'] = $department;
             $_SESSION['login_time'] = time();
+            $_SESSION['last_activity'] = time();
 
             // If "Remember this device for 12 hours" is checked, generate 12-hour device trust token
             if ($rememberDevice) {
@@ -109,6 +128,8 @@ if (isset($_POST['verify_otp'])) {
             unset($_SESSION['pending_2fa_email']);
             unset($_SESSION['pending_2fa_department']);
             unset($_SESSION['pending_2fa_started']);
+            unset($_SESSION['pending_2fa_expires_at']);
+            unset($_SESSION['pending_otp_expires_at']);
 
             // Log authentication event
             $conn = getDBConnection();
@@ -145,6 +166,7 @@ if (isset($_POST['verify_otp'])) {
 }
 
 $maskedEmail = maskEmailPreview($email);
+$otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPExpirySeconds()));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -241,9 +263,9 @@ $maskedEmail = maskEmailPreview($email);
             <!-- RESEND & BACK OPTIONS -->
             <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
                 <form method="POST" id="resendForm">
-                    <button type="submit" name="resend_otp" id="resendBtn" class="text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1.5 transition">
+                    <button type="submit" name="resend_otp" id="resendBtn" class="text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         <i class="fa-solid fa-rotate-right"></i>
-                        <span>Resend Code</span>
+                        <span id="resendBtnLabel">Resend Code</span>
                     </button>
                 </form>
 
@@ -264,7 +286,10 @@ $maskedEmail = maskEmailPreview($email);
     <!-- SCRIPT FOR AUTOMATIC DIGIT ADVANCE, BACKSPACE, PASTE, & AUTOFILL -->
     <script>
         const inputs = Array.from(document.querySelectorAll('.otp-input'));
-        
+        const resendBtn = document.getElementById('resendBtn');
+        const resendBtnLabel = document.getElementById('resendBtnLabel');
+        const otpExpiryEpoch = <?php echo json_encode((int)$otpExpiryEpoch, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+
         inputs.forEach((input, index) => {
             input.addEventListener('input', (e) => {
                 const val = e.target.value;
@@ -293,6 +318,47 @@ $maskedEmail = maskEmailPreview($email);
                 }
             });
         });
+
+        function updateOtpCountdown() {
+            const remaining = Math.max(0, otpExpiryEpoch - Math.floor(Date.now() / 1000));
+            const seconds = remaining % 60;
+            const minutes = Math.floor(remaining / 60);
+            const countdownLabel = minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, '0')}s` : `${seconds}s`;
+
+            if (remaining <= 0) {
+                const otpNotice = document.createElement('div');
+                otpNotice.className = 'mt-4 text-center text-red-600 text-xs font-semibold';
+                otpNotice.textContent = 'This code has expired. Please request a new one.';
+                const container = document.querySelector('#otpForm');
+                if (container && !container.querySelector('.otp-expired-message')) {
+                    otpNotice.classList.add('otp-expired-message');
+                    container.insertAdjacentElement('afterend', otpNotice);
+                }
+                if (resendBtn) {
+                    resendBtn.disabled = false;
+                    resendBtnLabel.textContent = 'Resend Code';
+                }
+                return;
+            }
+
+            const countdownText = 'Code expires in ' + countdownLabel;
+            let indicator = document.getElementById('otpCountdown');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'otpCountdown';
+                indicator.className = 'mt-3 text-center text-xs font-medium text-slate-500';
+                document.querySelector('#otpForm').insertAdjacentElement('afterend', indicator);
+            }
+            indicator.textContent = countdownText;
+
+            if (resendBtn) {
+                resendBtn.disabled = remaining > 0;
+                resendBtnLabel.textContent = remaining > 0 ? 'Resend Code (' + remaining + 's)' : 'Resend Code';
+            }
+        }
+
+        updateOtpCountdown();
+        setInterval(updateOtpCountdown, 1000);
     </script>
 </body>
 </html>

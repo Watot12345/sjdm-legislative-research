@@ -46,52 +46,102 @@ function isOTPEnabled() {
     return true;
 }
 
+function getOTPExpirySeconds() {
+    return (int)Environment::get('OTP_EXPIRY_SECONDS', 60);
+}
+
+function getOTPChallengeValiditySeconds() {
+    return (int)Environment::get('OTP_CHALLENGE_VALIDITY_SECONDS', 7200);
+}
+
+function getSessionIdleTimeoutSeconds() {
+    return (int)Environment::get('AUTH_IDLE_TIMEOUT_SECONDS', 295);
+}
+
+function getSessionWarningSeconds() {
+    return (int)Environment::get('AUTH_WARNING_SECONDS', 5);
+}
+
+function touchUserActivity() {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    if (isset($_SESSION['user_id'])) {
+        $_SESSION['last_activity'] = time();
+    }
+}
+
 /**
- * Enforce 12-Hour Session Expiration across all authenticated pages.
+ * Enforce hard and idle session expiration across all authenticated pages.
  * If expired, cleans session and redirects to login with timeout notice.
  */
-function enforceSessionTimeout($maxSeconds = 43200) {
-    if (isset($_SESSION['user_id'])) {
-        if (!isset($_SESSION['login_time'])) {
-            $_SESSION['login_time'] = time();
+function enforceSessionTimeout($maxSeconds = 43200, $idleSeconds = null) {
+    if (!isset($_SESSION['user_id'])) {
+        return;
+    }
+
+    if (!isset($_SESSION['login_time'])) {
+        $_SESSION['login_time'] = time();
+    }
+    if (!isset($_SESSION['last_activity'])) {
+        $_SESSION['last_activity'] = time();
+    }
+
+    $now = time();
+    $sessionAge = $now - (int)$_SESSION['login_time'];
+    $inactiveSeconds = $now - (int)$_SESSION['last_activity'];
+    $idleLimit = $idleSeconds !== null ? (int)$idleSeconds : getSessionIdleTimeoutSeconds();
+
+    $timedOut = false;
+    $reason = 'expired';
+    if ($sessionAge > $maxSeconds) {
+        $timedOut = true;
+        $reason = 'expired';
+    } elseif ($inactiveSeconds > $idleLimit) {
+        $timedOut = true;
+        $reason = 'inactive';
+    }
+
+    if ($timedOut) {
+        // Log timeout activity
+        if (isset($_SESSION['username'])) {
+            $conn = getDBConnection();
+            $user = $_SESSION['username'];
+            $action = $reason === 'inactive' ? 'Session expired due to inactivity' : 'Session expired after 12 hours';
+            $module = 'Authentication';
+            $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
+            if ($logStmt) {
+                $logStmt->bind_param("sss", $user, $action, $module);
+                @$logStmt->execute();
+                @$logStmt->close();
+            }
         }
 
-        $sessionAge = time() - (int)$_SESSION['login_time'];
-        if ($sessionAge > $maxSeconds) {
-            // Log timeout activity
-            if (isset($_SESSION['username'])) {
-                $conn = getDBConnection();
-                $user = $_SESSION['username'];
-                $action = "Session expired after 12 hours";
-                $module = "Authentication";
-                $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
-                if ($logStmt) {
-                    $logStmt->bind_param("sss", $user, $action, $module);
-                    @$logStmt->execute();
-                    @$logStmt->close();
-                }
-            }
+        $_SESSION = [];
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000,
+                $params["path"], $params["domain"],
+                $params["secure"], $params["httponly"]
+            );
+        }
+        session_destroy();
 
-            // Clear session data
-            $_SESSION = [];
-            if (ini_get("session.use_cookies")) {
-                $params = session_get_cookie_params();
-                setcookie(session_name(), '', time() - 42000,
-                    $params["path"], $params["domain"],
-                    $params["secure"], $params["httponly"]
-                );
-            }
-            session_destroy();
+        $redirectPath = 'login.php?expired=1';
+        if (strpos($_SERVER['REQUEST_URI'], '/modules/') !== false || strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) {
+            $redirectPath = '../login.php?expired=1';
+        }
 
-            // Determine relative redirect to login.php
-            $redirectPath = 'login.php?expired=1';
+        if ($reason === 'inactive') {
+            $redirectPath = 'login.php?timeout=1';
             if (strpos($_SERVER['REQUEST_URI'], '/modules/') !== false || strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) {
-                $redirectPath = '../login.php?expired=1';
+                $redirectPath = '../login.php?timeout=1';
             }
-
-            header("Location: " . $redirectPath);
-            exit();
         }
+
+        header("Location: " . $redirectPath);
+        exit();
     }
 }
 
@@ -124,21 +174,25 @@ function generateAndSendOTP($userId, $email, $fullName = '') {
     // Generate cryptographically secure 6-digit OTP code
     $otpCode = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
     $otpHash = password_hash($otpCode, PASSWORD_DEFAULT);
-    
-    // Expire in 5 minutes
-    $expiresAt = date('Y-m-d H:i:s', time() + 300);
+
+    $otpDurationSeconds = getOTPExpirySeconds();
+    $expiresAt = date('Y-m-d H:i:s', time() + $otpDurationSeconds);
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pending_otp_expires_at'] = time() + $otpDurationSeconds;
+    }
 
     // Save to user_otps table
     $stmt = $conn->prepare("INSERT INTO user_otps (user_id, otp_code, expires_at, is_used, created_at) VALUES (?, ?, ?, 0, NOW())");
     if (!$stmt) {
-        return ['success' => false, 'mail_sent' => false, 'message' => 'Database error generating OTP.', 'otp_code' => ''];
+        return ['success' => false, 'mail_sent' => false, 'message' => 'Database error generating OTP.', 'otp_code' => '', 'otp_expires_at' => time() + $otpDurationSeconds];
     }
     $stmt->bind_param("iss", $userId, $otpHash, $expiresAt);
     $saved = $stmt->execute();
     $stmt->close();
 
     if (!$saved) {
-        return ['success' => false, 'mail_sent' => false, 'message' => 'Failed to save OTP record.', 'otp_code' => ''];
+        return ['success' => false, 'mail_sent' => false, 'message' => 'Failed to save OTP record.', 'otp_code' => '', 'otp_expires_at' => time() + $otpDurationSeconds];
     }
 
     // Send via PHPMailer
@@ -153,7 +207,8 @@ function generateAndSendOTP($userId, $email, $fullName = '') {
         'success' => true,
         'mail_sent' => (bool)$mailResult['sent'],
         'message' => $mailResult['message'],
-        'otp_code' => $otpCode
+        'otp_code' => $otpCode,
+        'otp_expires_at' => time() + $otpDurationSeconds
     ];
 }
 

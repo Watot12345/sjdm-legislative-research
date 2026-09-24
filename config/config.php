@@ -167,5 +167,12 @@ function getGeminiConfig() {
 require_once __DIR__ . '/../includes/auth_helper.php';
 require_once __DIR__ . '/../includes/toast.php';
 
-// Enforce 12-hour session lifetime limit on all authenticated requests
-enforceSessionTimeout((int)Environment::get('AUTH_SESSION_LIFETIME_SECONDS', 43200));
+if (isset($_SESSION['user_id'])) {
+    touchUserActivity();
+}
+
+// Enforce hard and idle session limits on all authenticated requests
+enforceSessionTimeout(
+    (int)Environment::get('AUTH_SESSION_LIFETIME_SECONDS', 43200),
+    (int)Environment::get('AUTH_IDLE_TIMEOUT_SECONDS', 295)
+);

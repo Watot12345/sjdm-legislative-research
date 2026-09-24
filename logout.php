@@ -6,7 +6,7 @@ require_once __DIR__ . '/config/config.php';
 if (isset($_SESSION['username'])) {
     $conn = getDBConnection();
     $user = $_SESSION['username'];
-    $actionText = "User logged out";
+    $actionText = isset($_GET['timeout']) ? "User logged out due to inactivity" : "User logged out";
     $moduleText = "Authentication";
     $logStmt = $conn->prepare("INSERT INTO activity_logs (user, action, module, timestamp) VALUES (?, ?, ?, NOW())");
     if ($logStmt) {

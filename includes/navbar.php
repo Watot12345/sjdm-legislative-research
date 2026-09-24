@@ -413,6 +413,81 @@ if (isset($route_map[$current_file])) {
 </header>
 
 <script>
+(function() {
+    const idleTimeoutSeconds = <?php echo json_encode((int)(
+        function_exists('getSessionIdleTimeoutSeconds') ? getSessionIdleTimeoutSeconds() : 295
+    )); ?>;
+    const warningSeconds = <?php echo json_encode((int)(
+        function_exists('getSessionWarningSeconds') ? getSessionWarningSeconds() : 5
+    )); ?>;
+    const logoutUrl = <?php echo json_encode($logout_url ?? 'logout.php'); ?>;
+    let countdown = idleTimeoutSeconds;
+    let warningVisible = false;
+
+    function ensureWarningBox() {
+        let box = document.getElementById('inactiveSessionWarning');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'inactiveSessionWarning';
+            box.style.position = 'fixed';
+            box.style.right = '20px';
+            box.style.bottom = '20px';
+            box.style.zIndex = '9999';
+            box.style.display = 'none';
+            box.style.background = '#fff7ed';
+            box.style.border = '1px solid #fdba74';
+            box.style.boxShadow = '0 12px 32px rgba(15,23,42,0.18)';
+            box.style.color = '#9a4d00';
+            box.style.borderRadius = '12px';
+            box.style.padding = '12px 16px';
+            box.style.maxWidth = '320px';
+            box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
+                '<div><div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;">Inactive session</div>' +
+                '<div id="inactiveSessionText" style="font-size:14px;font-weight:600; margin-top:4px;">Logging out in 5 seconds</div></div>' +
+                '<button type="button" onclick="window.location.href=\'' + logoutUrl + '?timeout=1\'" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:700;cursor:pointer;">Logout now</button>' +
+                '</div>';
+            document.body.appendChild(box);
+        }
+        return box;
+    }
+
+    function updateWarning() {
+        const box = ensureWarningBox();
+        const text = document.getElementById('inactiveSessionText');
+        if (countdown > 0 && countdown <= warningSeconds) {
+            if (text) text.textContent = 'Logging out in ' + countdown + ' second' + (countdown === 1 ? '' : 's');
+            box.style.display = 'block';
+            warningVisible = true;
+        } else if (warningVisible) {
+            box.style.display = 'none';
+            warningVisible = false;
+        }
+    }
+
+    function resetInactivityTimer() {
+        countdown = idleTimeoutSeconds;
+        const box = ensureWarningBox();
+        box.style.display = 'none';
+        warningVisible = false;
+    }
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'pointerdown'];
+    activityEvents.forEach((eventName) => {
+        document.addEventListener(eventName, resetInactivityTimer, { passive: true });
+    });
+
+    setInterval(function() {
+        countdown -= 1;
+        if (countdown <= 0) {
+            window.location.href = logoutUrl + '?timeout=1';
+            return;
+        }
+        if (countdown <= warningSeconds) {
+            updateWarning();
+        }
+    }, 1000);
+})();
+
 function toggleNotificationDropdown() {
     const menu = document.getElementById('notificationMenu');
     if (menu) menu.classList.toggle('hidden');
