@@ -260,11 +260,6 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
                 </button>
             </form>
 
-            <!-- RESEND & BACK OPTIONS -->
-            <div class="mt-3 text-center text-[10px] font-medium tracking-wide text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5 inline-block mx-auto">
-                OTP page v2 - refresh check
-            </div>
-
             <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
                 <form method="POST" id="resendForm">
                     <button type="submit" name="resend_otp" id="resendBtn" class="text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
