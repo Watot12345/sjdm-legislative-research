@@ -243,12 +243,12 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
                     </div>
                 </div>
 
-                <!-- REMEMBER DEVICE CHECKBOX (12 HOURS) -->
+                <!-- REMEMBER DEVICE CHECKBOX -->
                 <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-4">
                     <label class="flex items-start gap-3 cursor-pointer select-none">
                         <input type="checkbox" name="remember_device" id="remember_device" value="1" checked class="w-5 h-5 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
                         <div class="text-xs text-slate-700">
-                            <span class="font-semibold text-slate-900 block text-sm">Remember this device for 12 hours</span>
+                            <span class="font-semibold text-slate-900 block text-sm">Remember this device</span>
                         </div>
                     </label>
                 </div>
@@ -324,20 +324,23 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
             const seconds = remaining % 60;
             const minutes = Math.floor(remaining / 60);
             const countdownLabel = minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, '0')}s` : `${seconds}s`;
+            const container = document.querySelector('#otpForm');
 
             if (remaining <= 0) {
-                const otpNotice = document.createElement('div');
-                otpNotice.className = 'mt-4 text-center text-red-600 text-xs font-semibold';
-                otpNotice.textContent = 'This code has expired. Please request a new one.';
-                const container = document.querySelector('#otpForm');
-                if (container && !container.querySelector('.otp-expired-message')) {
-                    otpNotice.classList.add('otp-expired-message');
-                    container.insertAdjacentElement('afterend', otpNotice);
+                const existingNotice = document.querySelector('.otp-expired-message');
+                if (!existingNotice) {
+                    const otpNotice = document.createElement('div');
+                    otpNotice.className = 'mt-4 text-center text-red-600 text-xs font-semibold otp-expired-message';
+                    otpNotice.textContent = 'This code has expired. Please request a new one.';
+                    if (container) {
+                        container.insertAdjacentElement('afterend', otpNotice);
+                    }
                 }
                 if (resendBtn) {
                     resendBtn.disabled = false;
                     resendBtnLabel.textContent = 'Resend Code';
                 }
+                clearInterval(otpCountdownTimer);
                 return;
             }
 
@@ -347,7 +350,9 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
                 indicator = document.createElement('div');
                 indicator.id = 'otpCountdown';
                 indicator.className = 'mt-3 text-center text-xs font-medium text-slate-500';
-                document.querySelector('#otpForm').insertAdjacentElement('afterend', indicator);
+                if (container) {
+                    container.insertAdjacentElement('afterend', indicator);
+                }
             }
             indicator.textContent = countdownText;
 
@@ -358,7 +363,7 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
         }
 
         updateOtpCountdown();
-        setInterval(updateOtpCountdown, 1000);
+        const otpCountdownTimer = setInterval(updateOtpCountdown, 1000);
     </script>
 </body>
 </html>
