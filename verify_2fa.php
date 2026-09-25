@@ -167,6 +167,7 @@ if (isset($_POST['verify_otp'])) {
 
 $maskedEmail = maskEmailPreview($email);
 $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPExpirySeconds()));
+$remainingSeconds = max(0, $otpExpiryEpoch - time());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -287,7 +288,8 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
         const inputs = Array.from(document.querySelectorAll('.otp-input'));
         const resendBtn = document.getElementById('resendBtn');
         const resendBtnLabel = document.getElementById('resendBtnLabel');
-        const otpExpiryEpoch = <?php echo json_encode((int)$otpExpiryEpoch, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const initialRemaining = <?php echo json_encode((int)$remainingSeconds, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const pageLoadedAt = Math.floor(Date.now() / 1000);
 
         inputs.forEach((input, index) => {
             input.addEventListener('input', (e) => {
@@ -319,7 +321,8 @@ $otpExpiryEpoch = (int)($_SESSION['pending_otp_expires_at'] ?? (time() + getOTPE
         });
 
         function updateOtpCountdown() {
-            const remaining = Math.max(0, otpExpiryEpoch - Math.floor(Date.now() / 1000));
+            const elapsed = Math.floor(Date.now() / 1000) - pageLoadedAt;
+            const remaining = Math.max(0, initialRemaining - elapsed);
             const seconds = remaining % 60;
             const minutes = Math.floor(remaining / 60);
             const countdownLabel = minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, '0')}s` : `${seconds}s`;
